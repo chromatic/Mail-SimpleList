@@ -69,10 +69,10 @@ ok( $mail->body() =~ /Post to (alias\+(.+)\@.+)\./,
 	                              '... containing alias id' );
 
 my ($alias_add, $alias_id) = ($1, $2);
-ok( $ml->{Aliases}->exists( $alias_id ),
+ok( $ml->storage->exists( $alias_id ),
 	                              '... creating alias file' );
 
-my $alias = $ml->{Aliases}->fetch( $alias_id );
+my $alias = $ml->storage->fetch( $alias_id );
 ok( $alias, 'alias should be fetchable' );
 is_deeply( $alias->members(),
 	[ 'me@home', 'you@elsewhere' ], '... adding the correct members' );
@@ -97,15 +97,15 @@ $count = @mails;
 $mail  = shift @mails;
 is_deeply( $mail->Bcc(),[ 'me@home', 'you@elsewhere' ],
 	                              'message sent to alias should Bcc everyone' );
-is( $mail->From(),    "me\@home\n",      '... keeping from address' );
-is( $mail->To(),      "$alias_add\n",    '... keeping To address as the alias');
-is( $mail->Subject(), "Hi there\n",      '... saving the subject' );
+is( $mail->From(),    'me@home',         '... keeping from address' );
+is( $mail->To(),      $alias_add,        '... keeping To address as the alias');
+is( $mail->Subject(), 'Hi there',        '... saving the subject' );
 ok( ! $mail->CC(),                       '... removing all CC addresses' );
 
 like( $mail->body(), qr/hi there/,       '... sending the message body' );
 like( $mail->body(), qr/you guys/,       '... multiple lines' );
 like( $mail->body(), qr/To unsubscribe/, '... appending unsubscribe message' );
-is( $mail->$replyto(), "$alias_add\n",   '... setting Reply-To to alias' );
+is( $mail->$replyto(), $alias_add,       '... setting Reply-To to alias' );
 is( $count, 1,                           '... sending only to subscribers' );
 
 diag( "Remove an address from the alias" );
@@ -120,7 +120,7 @@ END_HERE
 $ml = Mail::SimpleList->new( 'alias', $fake_glob );
 $ml->process();
 
-$alias = $ml->{Aliases}->fetch( $alias_id );
+$alias = $ml->storage->fetch( $alias_id );
 is_deeply( $alias->members(), [ 'me@home' ],
 	'unsubscribing should remove an address from the alias' );
 
@@ -158,7 +158,7 @@ like( $mail->body(), $regex,
 	                   'new aliases with expiration date should be creatable' );
 
 ($alias_add, $alias_id) = $mail->body() =~ $regex;
-$alias = $ml->{Aliases}->fetch( $alias_id );
+$alias = $ml->storage->fetch( $alias_id );
 
 ok( $alias->expires(), '... setting expiration on the alias to true' );
 
@@ -168,7 +168,7 @@ is_deeply( $alias->members(),
 is( $count, 4,         '... sending a message to creator and each subscriber' );
 
 $alias->{expires} = time() - 100;
-$ml->{Aliases}->save( $alias, $alias_id );
+$ml->storage->save( $alias, $alias_id );
 
 $fake_glob = FakeIn->new( split(/\n/, <<END_HERE) );
 From: me\@home
@@ -185,7 +185,7 @@ $ml->process();
 
 $count = @mails;
 $mail  = shift @mails;
-is( $mail->To(), "me\@home\n",                '... responding to user' );
+is( $mail->To(), 'me@home',                   '... responding to user' );
 like( $mail->Subject(), qr/expired/,          '... with expired in subject' );
 
 is( $mail->body(), 'This alias has expired.', '... and an expiration message' );
@@ -213,7 +213,7 @@ $regex = qr/Post to (alias\+(.+)\@.+)\./;
 like( $mail->body(), $regex, 'new closed alias should be creatable' );
 
 ($alias_add, $alias_id) = $mail->body() =~ $regex;
-$alias = $ml->{Aliases}->fetch( $alias_id );
+$alias = $ml->storage->fetch( $alias_id );
 ok( $alias->closed(), '... and should be marked as closed' );
 is( $count, 2,        '... sending two messages' );
 
@@ -231,7 +231,7 @@ $ml->process();
 
 $count = @mails;
 $mail  = shift @mails;
-is( $mail->To(), "not\@list\n",             '... responding to user' );
+is( $mail->To(), 'not@list',                '... responding to user' );
 like( $mail->Subject(), qr/closed/,         '... with closed in subject' );
 
 is( $mail->body(),
@@ -274,14 +274,14 @@ $ml = Mail::SimpleList->new( 'alias', $fake_glob );
 $ml->process();
 
 ($alias_add, $alias_id) = $mail->body() =~ /$regex/;
-$alias                  = $ml->{Aliases}->fetch( $alias_id );
+$alias                  = $ml->storage->fetch( $alias_id );
 
 is_deeply( $alias->members(), [ 'me@home' ],
 	                       'posting to alias should not add copied addresses' );
 
 $count = @mails;
 $mail  = shift @mails;
-is( $mail->CC(), "you\@there\n",
+is( $mail->CC(), 'you@there',
                            '... but should keep them on the list' );
 is_deeply( $mail->Bcc(),
 	[ 'me@home' ],         '... along with alias subscribers' );
@@ -306,7 +306,7 @@ $mail      = shift @mails;
 	or diag "Alias not cloned; tests will fail\n";
 
 my $oldalias = $alias;
-$alias       = $ml->{Aliases}->fetch( $alias_id );
+$alias       = $ml->storage->fetch( $alias_id );
 
 is_deeply( $alias->members(), $oldalias->members(),
 	                                'cloning a list should clone its members' );
@@ -373,7 +373,7 @@ $ml = Mail::SimpleList->new( 'alias', $fake_glob );
 $ml->process();
 
 $mail = shift @mails;
-ok( $ml->{Aliases}->exists( 'anewname' ),
+ok( $ml->storage->exists( 'anewname' ),
 	'creating new list with Name directive should create alias of that name' );
 like( $mail->body(), qr/Post to alias\+anewname\@there/,
 	'... setting post address correctly' );

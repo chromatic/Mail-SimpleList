@@ -1,13 +1,9 @@
 package Mail::SimpleList::Aliases;
 
 use strict;
+use base 'Mail::Action::Storage';
 
-use YAML;
-use File::Path;
 use File::Spec;
-
-use Carp  'croak';
-use Fcntl ':flock';
 
 use Mail::SimpleList::Alias;
 
@@ -18,39 +14,18 @@ sub new
 {
 	my ($class, $directory) = @_;
 	$directory ||= File::Spec->catdir( $ENV{HOME}, '.aliases' );
-	
-	bless { alias_dir => $directory }, $class;
+
+	$class->SUPER::new( $directory );
 }
 
-sub alias_dir
+sub stored_class
 {
-	my $self = shift;
-	return $self->{alias_dir};
+	'Mail::SimpleList::Alias';
 }
 
-sub alias_file
+sub storage_extension
 {
-	my ($self, $alias) = @_;
-	return File::Spec->catfile( $self->alias_dir(), $alias . '.sml' );
-}
-
-sub exists
-{
-	my ($self, $alias) = @_;
-	return -e $self->alias_file( $alias );
-}
-
-sub fetch
-{
-	my ($self, $alias) = @_;
-
-	local *IN;
-	open(  IN, $self->alias_file( $alias ) ) or return;
-	flock( IN, LOCK_SH );
-	my $data = do { local $/; <IN> };
-	close IN;
-
-	return Mail::SimpleList::Alias->new(%{ Load( $data ) }, name => $alias );
+	'sml'
 }
 
 sub create
@@ -61,29 +36,6 @@ sub create
 		owner   => $owner,
 		members => [$owner],
 	);
-}
-
-sub save
-{
-	my ($self, $alias, $alias_name) = @_;
-	my $file = $self->alias_file( $alias_name );
-	delete $alias->{name};
-
-	local *OUT;
-
-	if (-e $file)
-	{
-		open( OUT, '+< ' . $file ) or croak "Cannot save data for '$file': $!";
-		flock    OUT, LOCK_EX;
-		seek     OUT, 0, 0;
-		truncate OUT, 0;
-	}
-	else
-	{
-		open( OUT, '> ' . $file ) or croak "Cannot save data for '$file': $!";
-	}
-
-	print OUT Dump { %$alias };
 }
 
 1;
@@ -119,18 +71,18 @@ ambiguous.
 If no argument is provided, this will default to C<~/.aliases> for the invoking
 user.
 
-=item * alias_dir()
+=item * storage_dir()
 
 Returns the directory where this object's Alias data files are stored.
 
-=item * exists( $alias_id )
+=item * exists( $alias_name )
 
-Returns true or false if an alias with this id exists.
+Returns true or false if an alias with this name exists.
 
-=item * fetch( $alias_id )
+=item * fetch( $alias_name )
 
-Creates and returns a Mail::SimpleList::Alias object representing this alias
-id.  This can return nothing if the alias does not exist.
+Creates and returns a Mail::SimpleList::Alias object represented by this alias
+name.  This can return nothing if the alias does not exist.
 
 =item * create( $owner )
 
@@ -157,6 +109,10 @@ None known.
 =head1 TODO
 
 No plans.  It's pretty nice as it is.
+
+=head1 SEE ALSO
+
+L<Mail::Action::Storage>, the parent class.
 
 =head1 COPYRIGHT
 

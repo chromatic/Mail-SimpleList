@@ -12,7 +12,7 @@ use Cwd;
 use File::Path;
 use File::Spec;
 
-use Test::More tests => 25;
+use Test::More tests => 29;
 use Test::Exception;
 use Test::MockObject;
 
@@ -24,26 +24,33 @@ $ENV{HOME}  = cwd();
 my $aliases = Mail::SimpleList::Aliases->new();
 isa_ok( $aliases, 'Mail::SimpleList::Aliases' );
 
-my $alias_dir = File::Spec->catdir( $ENV{HOME}, '.aliases' );
+my $storage_dir = File::Spec->catdir( $ENV{HOME}, '.aliases' );
 
-can_ok( $aliases, 'alias_dir' );
-is( $aliases->alias_dir(), $alias_dir,
+can_ok( $aliases, 'storage_dir' );
+is( $aliases->storage_dir(), $storage_dir,
 	'new() should use ~/.aliases directory as default' );
 
-is( Mail::SimpleList::Aliases->new( $ENV{HOME} )->alias_dir(), $ENV{HOME},
+is( Mail::SimpleList::Aliases->new( $ENV{HOME} )->storage_dir(), $ENV{HOME},
 	'... or a specified directory' );
+
+can_ok( $aliases, 'stored_class' );
+is( $aliases->stored_class(), 'Mail::SimpleList::Alias',
+	'stored_class() should be M::SL::Alias' );
+
+can_ok( $aliases, 'storage_extension' );
+is( $aliases->storage_extension(), 'sml', 'storage_extension() should be mta' );
 
 can_ok( $aliases, 'exists' );
 
 {
-	mkpath( File::Spec->catdir( $alias_dir ) );
+	mkpath( File::Spec->catdir( $storage_dir ) );
 
-	my $foo_file = File::Spec->catfile( $alias_dir, 'foo.sml' );
+	my $foo_file = File::Spec->catfile( $storage_dir, 'foo.sml' );
 	local *FOO;
 	open( FOO, '>' . $foo_file );
 	print FOO 'test';
 
-	link $foo_file, File::Spec->catfile( $alias_dir, '12345.sml' );
+	link $foo_file, File::Spec->catfile( $storage_dir, '12345.sml' );
 }
 
 ok( $aliases->exists( 'foo' ),     'exists() should be true if alias exists' );
@@ -70,13 +77,13 @@ ok( @{ $alias->members() }, 'fetch() should return a populated alias' );
 is(    $alias->owner(),     'chromatic@wgz.org', '... with the right data' );
 is(    $alias->name(),      'newalias',          '... including the name' );
 
-can_ok( $aliases, 'alias_file' );
-is( $aliases->alias_file( 'foo' ),
+can_ok( $aliases, 'storage_file' );
+is( $aliases->storage_file( 'foo' ),
 	File::Spec->catfile( $ENV{HOME}, '.aliases','foo.sml' ),
-	'alias_file() should return valid alias filepath' );
+	'storage_file() should return valid alias filepath' );
 {
-	local $aliases->{alias_dir} = 'newdir/';
-	is( $aliases->alias_file( 'bar' ), 'newdir/bar.sml',
+	local $aliases->{storage_dir} = 'newdir/';
+	is( $aliases->storage_file( 'bar' ), 'newdir/bar.sml',
 		'... respecting alias dir' );
 }
 

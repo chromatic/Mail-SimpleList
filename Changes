@@ -1,3 +1,22 @@
+0.85
+	Sat Dec 13 22:37:22 UTC 2003 ($Rev: 25 $)
+	- use Mail::Action::Address roles in Mail::SimpleList::Alias
+	- add dependency on Class::Roles
+
+	Thu Dec 11 05:40:30 UTC 2003 (Rev: 24)
+	- factored out Mail::Action::Address
+	- update files for 0.85 release
+
+0.82
+	Sun Nov  2 04:06:50 UTC 2003 (Rev: 23)
+	- factored out Mail::Action::Storage
+	- made Mail::SimpleList::Aliases extend Mail::Action::Storage
+	- fixed typo in previous Changes version
+
+	Sun Nov  2 03:29:02 UTC 2003 (Rev: 22)
+	- factored out Mail::Action
+	- made Mail::SimpleList extend Mail::Action
+
 0.81 Tue Oct 14 23:05:08 UTC 2003
 	- ignore signatures when creating new lists (Brett Warden)
 	- update files for 0.81 release

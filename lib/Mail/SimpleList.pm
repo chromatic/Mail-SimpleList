@@ -3,41 +3,21 @@ package Mail::SimpleList;
 use strict;
 my $pod = do { local $/; <DATA> };
 
-use Carp  'croak';
-use Fcntl ':flock';
+use base 'Mail::Action';
+use Carp 'croak';
 
 use Mail::Mailer;
 use Mail::Address;
 use Mail::Internet;
-use Mail::SimpleList::PodToHelp;
+
+use vars qw( $VERSION );
+$VERSION = '0.85';
 
 use Mail::SimpleList::Aliases;
 
-use vars qw( $VERSION );
-$VERSION = '0.81';
-
-sub new
+sub storage_class
 {
-	my ($class, $alias_dir, $fh) = @_;
-	$fh ||= \*STDIN;
-
-	my $self =
-	{
-		Aliases => Mail::SimpleList::Aliases->new( $alias_dir ),
-		Message => Mail::Internet->new( $fh ),
-	};
-	bless $self, $class;
-}
-
-sub fetch_alias
-{
-	my $self  = shift;
-	my $alias = $self->parse_alias( $self->{Message}->get( 'to' ) );
-	return unless $self->{Aliases}->exists( $alias );
-
-	return wantarray ?
-		( $self->{Aliases}->fetch( $alias ), $alias ) :
-		$self->{Aliases}->fetch( $alias );
+	'Mail::SimpleList::Aliases'
 }
 
 sub parse_alias
@@ -52,29 +32,21 @@ sub parse_alias
 sub command_help
 {
 	my $self   = shift;
-	my $from   = $self->address_field( 'from' );
-	my $parser = Mail::SimpleList::PodToHelp->new();
-
-	$parser->output_string( \( my $output ));
-	$parser->parse_string_document( $pod );
-
-	$output =~ s/(\A\s+|\s+\Z)//g;
-
-	$self->reply({ To => $from, Subject => 'Mail::SimpleList Help' },
-		$output );
+	$self->SUPER::command_help( $pod, 'USING LISTS', 'DIRECTIVES' );
 }
 
 sub command_new
 {
-	my $self   = shift;
-	my $from   = $self->address_field( 'from' );
-	my $alias  = $self->{Aliases}->create( $from );
-	my $users  = $self->process_body( $alias, @{ $self->{Message}->body() } );
-	my $id     = $self->generate_alias( $alias->name() );
-	my $post   = $self->post_address( $id );
+	my $self      = shift;
+	my $from      = $self->address_field( 'from' );
+	my $addresses = $self->storage();
+	my $alias     = $addresses->create( $from );
+	my $users     = $self->process_body( $alias );
+	my $id        = $self->generate_alias( $alias->name() );
+	my $post      = $self->post_address( $id );
 
 	$self->add_to_alias( $alias, $post, @$users );
-	$self->{Aliases}->save( $alias, $id );
+	$addresses->save( $alias, $id );
 
 	$self->reply({ To => $from, Subject => "Created list $id" },
 		"Mailing list created.  Post to $post." );
@@ -87,17 +59,19 @@ sub command_clone
 	my $self       = shift;
 
 	my $from       = $self->address_field( 'from' );
-	(my $subject   = $self->{Message}->get( 'Subject' )) =~ s/^\*clone\*\s+//;
+	my $message    = $self->message();
+	(my $subject   = $message->get( 'Subject' )) =~ s/^\*clone\*\s+//;
 	my ($alias_id) = $self->parse_alias( $subject );
-	my $parent     = $self->{Aliases}->fetch( $alias_id );
-	my $alias      = $self->{Aliases}->create( $from );
-	my $users      = $self->process_body( $alias, @{$self->{Message}->body()} );
+	my $addresses  = $self->storage();
+	my $parent     = $addresses->fetch( $alias_id );
+	my $alias      = $addresses->create( $from );
+	my $users      = $self->process_body( $alias, @{ $message->body() } );
 	my $id         = $self->generate_alias( $alias_id );
 	my $post       = $self->post_address( $id );
 
 	$self->add_to_alias( $alias, $post, @{ $parent->members() }, @$users );
 
-	$self->{Aliases}->save( $alias, $id );
+	$addresses->save( $alias, $id );
 
 	$self->reply({ To => $from, Subject => "Cloned alias $alias_id => $id" },
 		"Mailing list created.  Post to $post." );
@@ -108,17 +82,18 @@ sub command_clone
 sub address_field
 {
 	my ($self, $field) = @_;
-	my @values = Mail::Address->parse( $self->{Message}->get( $field ) );
+	my @values = Mail::Address->parse( $self->message->get( $field ) );
 	return wantarray ? @values : $values[0]->format();
 }
 
 sub generate_alias
 {
 	my ($self, $id) = @_;
+	my $addresses   = $self->storage();
 
 	$id      ||= sprintf '%x', reverse scalar time;
 
-	while ($self->{Aliases}->exists( $id ))
+	while ($addresses->exists( $id ))
 	{
 		$id    = sprintf '%x', ( reverse ( time() + rand($$) ));
 	}
@@ -136,55 +111,22 @@ sub post_address
 	return "$base+$id\@$host";
 }
 
-sub process_body
-{
-	my ($self, $alias, @body) = @_;
-
-	my $attributes  = $alias->attributes();
-	while ( @body and $body[0] =~ /^(\w+): (.*)$/ )
-	{
-		my ($directive, $value) = (lc($1), $2);
-		$alias->$directive( $value ) if exists $attributes->{ $directive };
-		shift @body;
-	}
-
-	return $self->remove_signature( \@body );
-}
-
-sub remove_signature
-{
-	my ($self, $body) = @_;
-
-	my @newbody;
-
-	while (@$body and $body->[0] !~ /^-- $/)
-	{
-		push @newbody, shift @$body;
-	}
-
-	return \@newbody;
-}
-
 sub reply
 {
-	my ($self, $headers, @body) = @_;
+	my ($self, $headers) = splice( @_, 0, 2 );
 	$headers->{'X-MSL-Seen'}    = '1';
-
-	my $mailer = Mail::Mailer->new();
-	$mailer->open( $headers );
-	$mailer->print( @body );
-	$mailer->close();
+	$self->SUPER::reply( $headers, @_ );
 }
 
 sub command_unsubscribe
 {
 	my $self         = shift;
-	my ($alias, $id) = $self->fetch_alias();
-	chomp( my $from  = $self->{Message}->get( 'from' ) );
+	my ($alias, $id) = $self->fetch_address();
+	chomp( my $from  = $self->message->get( 'from' ) );
 
 	$self->reply({ To => $from, Subject => "Remove from $alias" },
 		 ($alias->remove_address( $from ) and
-		  $self->{Aliases}->save( $alias, $id )) ?
+		  $self->storage->save( $alias, $id )) ?
 			"Unsubscribed $from successfully." :
 			"Unsubscribe unsuccessful for $from.  Check the address."
 	);
@@ -194,36 +136,28 @@ sub process
 {
 	my $self    = shift;
 
-	return if $self->{Message}->get('X-MSL-Seen');
+	return if $self->message->get('X-MSL-Seen');
 	my $command = $self->find_command();
 	return $self->$command() if $command;
 
-	my $alias   = $self->fetch_alias();
+	my $alias   = $self->fetch_address();
 	return $self->deliver( $alias ) if $alias;
 	$self->reject();
-}
-
-sub find_command
-{
-	my $self      = shift;
-	my ($subject) = $self->{Message}->get('subject') =~ /^\*(\w+)\*/;
-
-	my $command   = 'command_' . lc $subject;
-	return $self->can( $command ) ? $command : '';
 }
 
 sub deliver
 {
 	my ($self, $alias) = @_;
 
-	my $body    = $self->{Message}->body();
+	my $body    = $self->message->body();
 	my $name    = $alias->name();
 	my $host    = ($self->address_field( 'To' ))[0]->host();
 	my $message = $self->copy_headers();
 
 	unless ($self->can_deliver( $alias, $message ))
 	{
-		my $body = delete $message->{Body};
+		my $body       = delete $message->{Body};
+		$message->{To} = delete $message->{From};
 		$self->reply( $message, $body );
 		return;
 	}
@@ -231,9 +165,9 @@ sub deliver
 	my $desc    = $alias->description() || '';
 
 	if ( $alias->auto_add() )
-	{	
+	{
 		$self->add_to_alias( $alias, $message->{To}, delete $message->{CC} );
-		$self->{Aliases}->save( $alias, $name );
+		$self->storage->save( $alias, $name );
 	}
 
 	$message->{Bcc}        = $alias->members();
@@ -245,29 +179,6 @@ sub deliver
 		qq| reply to this sender alone with "*UNSUBSCRIBE*" in the subject.|
 	);
 }
-
-sub copy_headers
-{
-	my $self    = shift;
-	my $headers = $self->{Message}->head()->header_hashref();
-
-	while (my ($key, $value) = each %$headers)
-	{
-		next unless ref $value eq 'ARRAY';
-		chomp @$value;
-		$headers->{$key} = join(', ', @$value);
-	}
-
-	delete $headers->{'From '};
-
-	for my $header ( qw( from CC to subject ))
-	{
-		$headers->{ ucfirst($header) } = $self->{Message}->get( $header );
-	}
-
-	return $headers;
-}
-
 
 sub reject
 {
