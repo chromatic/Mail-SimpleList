@@ -1,11 +1,13 @@
 package FakeIn;
 
+use Symbol 'gensym';
+
 sub new
 {
-	my $class = shift;
-	local *GLOB;
-	tie *GLOB, $class, @_;
-	return \*GLOB;
+	my $class  = shift;
+	my $symbol = gensym();
+	tie *$symbol, $class, @_;
+	return $symbol;
 }
 
 sub TIEHANDLE

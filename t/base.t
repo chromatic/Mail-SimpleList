@@ -3,7 +3,7 @@
 BEGIN
 {
 	chdir 't' if -d 't';
-	unshift @INC, '../lib', '../blib/lib';
+	use lib '../lib', '../blib/lib';
 }
 
 use strict;
@@ -11,7 +11,7 @@ use strict;
 use File::Copy;
 use Mail::Header;
 
-use Test::More tests => 110;
+use Test::More tests => 119;
 use Test::Exception;
 use Test::MockObject;
 
@@ -34,11 +34,14 @@ isa_ok( $ml,            'Mail::SimpleList'  );
 }
 isa_ok( $ml->{Aliases}, 'Mail::SimpleList::Aliases' );
 
+$mock->{Message} = $mock;
+$mock->{Aliases} = $mock;
+
 can_ok( $ml, 'parse_alias' );
 my $result;
 
 can_ok( $ml, 'find_command' );
-$mock->set_series( 'get', '', '*FOO*', '*HELP*', '*NEW*', '*UNSUBSCRIBE*' );
+$mock->set_series( 'get', '', qw( *FOO* *HELP* *NEW* *UNSUBSCRIBE* *NEWNAME* ));
 
 ok(! $ml->find_command(), 'find_command() should return false lacking subject');
 ok(! $ml->find_command(), '... or invalid command' );
@@ -53,6 +56,7 @@ for my $command (qw( help new unsubscribe ))
 can_ok( $ml, 'process' );
 my $process = \&Mail::SimpleList::process;
 $mock->set_series( find_command => 0, 'command_foo' )
+	 ->set_series( get => 1, 0 )
 	 ->set_true( 'command_foo' )
 	 ->set_series( handle_command => 0, 1 )
 	 ->set_series( fetch_alias => 0, 0, 1 )
@@ -61,42 +65,51 @@ $mock->set_series( find_command => 0, 'command_foo' )
 	 ->clear();
 
 $result = $process->( $mock );
-is( $mock->next_call(), 'find_command',   'process() should check for command');
+is( $mock->next_call(), 'get',            'process() should check for loop' );
+ok( ! $result,                            '... returning if so' );
+
+$result = $process->( $mock );
+is( $mock->next_call( 2 ), 'find_command','...otherwise checking for command' );
 my $method = $mock->next_call();
 isnt( $method, 'command_foo',             '... not calling it if absent' );
 
 $mock->clear();
 $result = $process->( $mock );
-$method = $mock->next_call( 2 );
+$method = $mock->next_call( 3 );
 is( $method, 'command_foo',               '... but calling it if it is' );
 
+$mock->clear();
 $result = $process->( $mock );
-is( $mock->next_call( 2 ), 'fetch_alias', '... looking for alias' );
+is( $mock->next_call( 3 ), 'fetch_alias', '... looking for alias' );
 $method = $mock->next_call();
 is( $method, 'reject',                    '... rejecting with no valid alias' );
 
 $mock->clear();
 $result = $process->( $mock );
 
-is( $mock->next_call( 3 ), 'deliver',     '... delivering if alias is okay' );
+is( $mock->next_call( 4 ), 'deliver',     '... delivering if alias is okay' );
 
 can_ok( $ml, 'deliver' );
 
 my $body = [];
 my @gets = 
-$mock->set_series( get => ( (qw( from nonsml sml@snafu sub )) x 4 ) )
+$mock->set_series( get => ((qw( from@home from@home nonsml sml@snafu sub )) x4))
 	 ->set_always( body => [ 'body' ] )
 	 ->set_true( 'open' )
 	 ->set_true( 'close' )
 	 ->set_always( members => [qw( foo bar baz )] )
 	 ->set_series( expires => 100, time() + 100, 0 )
+	 ->set_always( head => $mock )
+	 ->mock( header_hashref => sub { my %new_hash; return \%new_hash; } )
 	 ->mock( print => sub { @$body = @_ } )
 	 ->clear();
 
 my $mock_alias = Test::MockObject->new()
 	->set_always( members => [qw( baz bar foo )] )
 	->set_series( 'auto_add' => 1, 0 )
-	->set_true( 'add' );
+	->set_true( 'add' )
+	->set_always( description => undef )
+	->set_always( name        => 'my name' );
 
 my @ata;
 {
@@ -121,30 +134,41 @@ my @ata;
 	ok( $cd,                  'deliver() should check deliverability' );
 	ok( ! $result,            '... returning false if it cannot be delivered' );
 
-	my ($method, $args) = $mock->next_call( 6 );
+	my ($method, $args) = $mock->next_call( 9 );
 	is( $method, 'open',                           '... opening message' );
-	is( $args->[1]{To},      'from',               '... to sender' );
+	is( $args->[1]{To},      'from@home',          '... to sender' );
 	is( $args->[1]{Subject}, 'Simple explanation', '... with failure subject' );
 
 	($method, $args) = $mock->next_call();
-	is( $method, 'print',                          '... printing message' );
+	is( $method,    'print',                       '... printing message' );
 	is( $args->[1], 'Longer explanation.',         '... about failure' );
 
 	$mock->clear();
-	$result = $ml->deliver( $mock_alias );
+	my $mock_aliases = Test::MockObject->new();
+	{
+		local $ml->{Aliases} = $mock_aliases;
+		$mock_aliases->set_true( 'save' );
+		$result = $ml->deliver( $mock_alias );
+	}
 	ok( $result,              '... true otherwise' );
+	($method, $args) = $mock_aliases->next_call();
+	is( $method, 'save',      '... saving alias' );
 
 	# now try it without auto-add
+	$result = $ml->deliver( $mock_alias );
+
+	# and with alias description
+	$mock_alias->set_always( description => 'this is my list' );
 	$result = $ml->deliver( $mock_alias );
 }
 
 like( "@$body", qr/To unsubscribe:/,        '... adding unsubscribe message' );
 ($method, my $args) = $mock->next_call();
 is( $method, 'body',                        '... fetching body' );
-($method, $args) = $mock->next_call();
+($method, $args) = $mock->next_call( 4 );
 is( $args->[1], 'from',                     '... fetching from address' );
 ($method, $args) = $mock->next_call();
-is( $args->[1], 'cc',                       '... fetching carbon copy address');
+is( $args->[1], 'CC',                       '... fetching carbon copy address');
 ($method, $args) = $mock->next_call();
 is( $args->[1], 'to',                       '... fetching alias address' );
 ($method, $args) = $mock->next_call();
@@ -156,24 +180,33 @@ is_deeply( $args->[1]{Bcc},
 	[qw( baz bar foo )],                    '... blind cc-ing list recipients');
 is( "@{ $ata[0] }",
 	"$ml $mock_alias sml\@snafu nonsml",    '... adding copied addys to list');
+is( $args->[1]{'List-Id'},
+	'<my name.list-id.home>',               '... setting list id without desc');
 
-($method, $args) = $mock->next_call( 8 );
+($method, $args) = $mock->next_call( 11 );
 is( @ata, 1, '... not adding addresses without auto-add' );
-is_deeply( $args->[1]{Cc}, 'nonsml', '... keeping Cc without auto-add' );
+is_deeply( $args->[1]{CC}, 'nonsml',        '... keeping CC without auto-add' );
+
+($method, $args) = $mock->next_call( 11 );
+is( $args->[1]{'List-Id'}, '"this is my list" <my name.list-id.home>',
+	                                        '... setting list id with desc' );
 
 can_ok( $ml, 'reject' );
 throws_ok { $ml->reject() }
 	qr/Invalid alias/,                      'reject() should throw error';
 cmp_ok( $!, '==', 100,                      '... setting ERRNO to REJECTED' );
+throws_ok { $ml->reject( 'my explanation' ) }
+	qr/my explanation/,                     '... using explanation if given';
 
 can_ok( $ml, 'process_body' );
 $mock_alias->set_always( 'attributes', { expires => 1 } )
 	       ->set_true( 'expires' )
 		   ->mock( add => sub { my $self = shift; $self->{members} = [ @_ ] } )
 		   ->set_true( 'owner' )
+		   ->set_true( 'description' )
 	       ->clear();
 
-$ml->process_body( $mock_alias, 'addy', split(/\n/, <<'END_HERE') );
+$result = $ml->process_body( $mock_alias, split(/\n/, <<'END_HERE') );
 Expires: 7d
 
 my@ddress
@@ -185,29 +218,32 @@ is( $method, 'expires',      'process_body() should handle Expires directive' );
 is( $args->[1], '7d',        '... setting expiration time' );
 
 # the real add() ignores blank lines
-is_deeply( $mock_alias->{members},
+is_deeply( $result,
 	[ '', 'my@ddress', 'your@ddress' ],
-	                         '... and adding all members correctly' );
+	                         '... returning remaining body lines' );
 
 can_ok( $ml, 'generate_alias' );
 my $mock_aliases = Test::MockObject->new();
 $mock_aliases->set_series( exists => 1, 0, 1, 0 );
 
 {
-	my $mock_add = Test::MockObject->new();
-	$mock_add->set_always( host => 'host' )
-		     ->set_always( user => 'alias+foo@host' );
-
 	local $ml->{Aliases} = $mock_aliases;
-	my ($id, $post)      = $ml->generate_alias( $mock_add, 123 );
+	my $id               = $ml->generate_alias( 123 );
 	isnt( $id, 123,   'generate_alias() should generate a fresh id' );
-	like( $post, qr/alias\+\w+\@host/,
-		              '... returning also the post address' );
 
 	my $time             = sprintf '%x', reverse time();
-	($id, $post)         = $ml->generate_alias( $mock_add );
+	$id                  = $ml->generate_alias();
 	ok( $id,          '... generating a new id by default' );
 	isnt( $id, $time, '... even if called in the same second' );
+}
+
+can_ok( $ml, 'post_address' );
+{
+	$mock->set_always( get => 'alias@host' );
+
+	my $post = $ml->post_address( 'foobar' );
+	is( $post, 'alias+foobar@host',
+		'post_address() should return postable address' );
 }
 
 can_ok( $ml, 'command_new' );
@@ -225,8 +261,8 @@ my @save;
 }
 
 ok( $result,                          'command_new() should return new alias' );
-is_deeply( $result->members(),
-	[ qw( xpou@snafu.org foo@bar.com baz ) ],
+my $members = [ sort @{ $result->members() } ];
+is_deeply( $members, [ sort qw( xpou@snafu.org foo@bar.com baz ) ],
                                       '... populating alias list from body' );
 
 ($method, $args) = $mock->next_call( 4 );
@@ -241,8 +277,8 @@ my ($alias_id) = $args->[1] =~ $regex;
 
 can_ok( $ml, 'command_clone' );
 $mock->clear();
-$mock->set_series( get => 'new@owner', 'alias@host',
-	"*clone* alias+$alias_id\@host" )
+$mock->set_series( get => 'new@owner', "*clone* alias+$alias_id\@host", 
+	'alias@host' )
 	 ->set_true( 'ata' )
 	 ->set_always( body => [qw( Expire: 7d )] )
 	 ->set_always( attributes => {} )
@@ -268,11 +304,11 @@ ok( $result,                      'command_clone() should create a new alias' );
 is( $method, 'fetch',             '... fetching alias to clone' );
 is( $args->[1], $alias_id,        '... from subject' );
 
-($method, $args) = $mock_aliases->next_call( 3 );
-is( $method, 'create',            '... creating a new alias' );
-isnt( $args->[1], $alias_id, '... not using the old id' );
-
 ($method, $args) = $mock_aliases->next_call();
+is( $method, 'create',            '... creating a new alias' );
+isnt( $args->[1], $alias_id,      '... not using the old id' );
+
+($method, $args) = $mock_aliases->next_call( 3 );
 is( $method, 'save',              '... saving alias' );
 
 is_deeply( $result->members(),
@@ -292,9 +328,6 @@ $mock->set_series( get => 'foo@bar', 'baz@bar' )
 
 $mock_alias->mock( remove_address => sub { return delete $_[0]->{$_[1]} });
 %$mock_alias = map { $_ => 1 } qw( boo@far baz@bar quux@bar );
-
-$mock->{Message} = $mock;
-$mock->{Aliases} = $mock;
 
 my $unsub = \&Mail::SimpleList::command_unsubscribe;
 $unsub->( $mock );
@@ -325,25 +358,30 @@ $mock->set_true( 'open' )
 	 ->clear();
 
 $mock_alias->set_always( owner => 'owner' )
+		   ->set_series( description => 'my desc' )
 	       ->clear();
 
 $ml->notify( $mock_alias, 54321, 'foo', 'bar' );
+is( $mock_alias->next_call(), 'owner',       'notify() should get owner' );
+is( $mock_alias->next_call(), 'description', '... and description' );
+
 for my $address (qw( foo bar ))
 {
 	($method, $args) = $mock->next_call();
-	is( $method, 'open',  'notify() should open mail' );
-	ok( delete $args->[1]{Date}, '... adding a date header' );
+	is( $method, 'open', 'notify() should open mail' );
 	is_deeply( $args->[1], {
-		From => 'owner',
-		To => $address,
-		'Reply-To' => 54321,
-		Subject => 'Added to alias 54321'
+		From         => 'owner',
+		To           => $address,
+		'Reply-To'   => 54321,
+		Subject      => 'Added to alias 54321',
+		'X-MSL-Seen' => 1,
 	}, '... sending from owner to address replying to list with subject');
 
 	($method, $args) = $mock->next_call();
-	is( $method, 'print', '... printing message body' );
-	like( $args->[1], qr/subscribed to alias 54321 by owner/,
-		                  '... a subscription message' );
+	is( $method, 'print',                       '... printing message body' );
+	like( $args->[1],
+		qr/subscribed to alias 54321 by owner/, '... a subscription message' );
+	like( $args->[2], qr/my desc/,              '... and the description' );
 	$mock->next_call();
 }
 
@@ -352,7 +390,7 @@ my $alias = Mail::SimpleList::Alias->new();
 $mock->set_true( 'notify' )
 	 ->clear();
 
-$result = Mail::SimpleList::add_to_alias( $mock, $alias, 54321, qw(foo bar baz) );
+$result = Mail::SimpleList::add_to_alias($mock, $alias, 54321, qw(foo bar baz));
 is_deeply( $alias->members(),
 	[qw( foo bar baz )],         'add_to_alias() should add members to alias' );
 ok( $result,                     '... returning true if members are added' );

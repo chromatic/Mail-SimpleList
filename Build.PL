@@ -6,6 +6,7 @@ my $build = Module::Build->new(
 	requires    => {
 		Mail::Address    => '1.53',
 		Mail::Internet   => '1.53',
+		Pod::Simple      => '',
 		Test::Exception  => '',
 		Test::MockObject => '0.11',
 		Test::Simple     => '0.47',

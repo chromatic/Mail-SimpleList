@@ -4,17 +4,18 @@ use strict;
 use Mail::Address;
 
 use vars qw( $VERSION );
-$VERSION = '0.70';
+$VERSION = '0.80';
 
 sub new
 {
 	my $class = shift;
 	bless {
-		owner    => '',
-		closed   => 0,
-		expires  => 0,
-		auto_add => 1,
-		members  => [],
+		owner       => '',
+		closed      => 0,
+		expires     => 0,
+		auto_add    => 1,
+		description => '',
+		members     => [],
 	@_ }, $class;
 }
 
@@ -123,9 +124,23 @@ sub auto_add
 	return $self->{auto_add};
 }
 
+sub description
+{
+	my $self             = shift;
+	$self->{description} = shift if @_;
+	return $self->{description};
+}
+
+sub name
+{
+	my $self       = shift;
+	($self->{name} = shift) =~ tr/-A-Za-z0-9_//cd if @_;
+	return $self->{name};
+}
+
 sub attributes
 {
-	{ owner => 1, closed => 1, expires => 1, auto_add => 1 }
+	+{ map { $_ => 1 } qw( owner closed expires auto_add description name ) }
 }
 
 1;
@@ -150,7 +165,7 @@ Mail::SimpleList::Alias - object representing a temporary mailing list
 A Mail::SimpleList::Alias object represents a temporary mailing list within
 Mail::SimpleList.  It contains all of the attributes of the list and provides
 methods to query and to set them.  The current attributes are C<owner>,
-C<closed>, C<expires>, C<auto_add>, and C<members>.
+C<closed>, C<expires>, C<auto_add>, C<description>, C<members> and C<name>.
 
 =head1 METHODS
 
@@ -207,12 +222,26 @@ Given C<$new_auto_add>, updates the C<auto_add> attribute of the Alias and
 returns the new value.  If the argument is not provided, returns the current
 value.
 
+=item * description( [ $new_description ] )
+
+Given C<$new_description>, updates the C<description> attribute of the Alias
+and returns the new value.  If the argument is not provided, returns the
+current value.
+
+=item * name( [ $new_name ] )
+
+Given C<$new_name>, updates the C<name> attribute of the Alias and returns the
+new value.  If the argument is not provided, returns the current value.  Note
+that this attribute is I<not> saved; it is not intrinsic to the behavior of the
+Alias at all.  Also note that only numbers, letters, the underscore, and the
+hyphen characters are allowed.
+
 =back
 
 =head1 AUTHOR
 
 chromatic, C<chromatic@wgz.org>, with helpful suggestions from friends, family,
-and peers.
+and peers.  Allison Randal suggested the C<name> scheme.
 
 =head1 BUGS
 

@@ -12,7 +12,7 @@ use Fcntl ':flock';
 use Mail::SimpleList::Alias;
 
 use vars qw( $VERSION );
-$VERSION = '0.70';
+$VERSION = '0.80';
 
 sub new
 {
@@ -50,25 +50,24 @@ sub fetch
 	my $data = do { local $/; <IN> };
 	close IN;
 
-	return Mail::SimpleList::Alias->new(%{ Load( $data ) });
+	return Mail::SimpleList::Alias->new(%{ Load( $data ) }, name => $alias );
 }
 
 sub create
 {
-	my ($self, $alias_name, $owner) = @_;
-	return if $self->exists( $alias_name );
+	my ($self, $owner) = @_;
 
-	my $alias = Mail::SimpleList::Alias->new();
-	$alias->owner( $owner );
-	$self->save( $alias, $alias_name );
-
-	return $alias;
+	return Mail::SimpleList::Alias->new(
+		owner   => $owner,
+		members => [$owner],
+	);
 }
 
 sub save
 {
 	my ($self, $alias, $alias_name) = @_;
 	my $file = $self->alias_file( $alias_name );
+	delete $alias->{name};
 
 	local *OUT;
 
@@ -133,11 +132,11 @@ Returns true or false if an alias with this id exists.
 Creates and returns a Mail::SimpleList::Alias object representing this alias
 id.  This can return nothing if the alias does not exist.
 
-=item * create( $alias_name, $owner )
+=item * create( $owner )
 
-Creates and returns a new Mail::SimpleList::Alias object, setting the owner and
-saving the object.  If an alias of this name already exists, it will return
-nothing.
+Creates and returns a new Mail::SimpleList::Alias object, setting the owner.
+Note that you will need to C<save()> the object yourself, if that's important
+to you.
 
 =item * save( $alias, $alias_name )
 

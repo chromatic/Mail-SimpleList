@@ -1,6 +1,7 @@
 package Mail::SimpleList;
 
 use strict;
+my $pod = do { local $/; <DATA> };
 
 use Carp  'croak';
 use Fcntl ':flock';
@@ -8,11 +9,12 @@ use Fcntl ':flock';
 use Mail::Mailer;
 use Mail::Address;
 use Mail::Internet;
+use Mail::SimpleList::PodToHelp;
 
 use Mail::SimpleList::Aliases;
 
 use vars qw( $VERSION );
-$VERSION = '0.70';
+$VERSION = '0.80';
 
 sub new
 {
@@ -49,18 +51,29 @@ sub parse_alias
 
 sub command_help
 {
+	my $self   = shift;
+	my $from   = $self->address_field( 'from' );
+	my $parser = Mail::SimpleList::PodToHelp->new();
+
+	$parser->output_string( \( my $output ));
+	$parser->parse_string_document( $pod );
+
+	$output =~ s/(\A\s+|\s+\Z)//g;
+
+	$self->reply({ To => $from, Subject => 'Mail::SimpleList Help' },
+		$output );
 }
 
 sub command_new
 {
 	my $self   = shift;
 	my $from   = $self->address_field( 'from' );
-	my ($to)   = $self->address_field( 'to' );
+	my $alias  = $self->{Aliases}->create( $from );
+	my $users  = $self->process_body( $alias, @{ $self->{Message}->body() } );
+	my $id     = $self->generate_alias( $alias->name() );
+	my $post   = $self->post_address( $id );
 
-	my ($id, $post) = $self->generate_alias( $to );
-	my $alias       = $self->{Aliases}->create( $id, $from );
-
-	$self->process_body( $alias, $post, @{ $self->{Message}->body() } );
+	$self->add_to_alias( $alias, $post, @$users );
 	$self->{Aliases}->save( $alias, $id );
 
 	$self->reply({ To => $from, Subject => "Created list $id" },
@@ -71,21 +84,19 @@ sub command_new
 
 sub command_clone
 {
-	my $self        = shift;
+	my $self       = shift;
 
-	my $from        = $self->address_field( 'from' );
-	my ($to)        = $self->address_field( 'to' );
-	(my $subject    = $self->{Message}->get( 'Subject' )) =~ s/^\*clone\*\s+//;
+	my $from       = $self->address_field( 'from' );
+	(my $subject   = $self->{Message}->get( 'Subject' )) =~ s/^\*clone\*\s+//;
+	my ($alias_id) = $self->parse_alias( $subject );
+	my $parent     = $self->{Aliases}->fetch( $alias_id );
+	my $alias      = $self->{Aliases}->create( $from );
+	my $users      = $self->process_body( $alias, @{$self->{Message}->body()} );
+	my $id         = $self->generate_alias( $alias_id );
+	my $post       = $self->post_address( $id );
 
-	my ($alias_id)  = $self->parse_alias( $subject );
+	$self->add_to_alias( $alias, $post, @{ $parent->members() }, @$users );
 
-	my $parent      = $self->{Aliases}->fetch( $alias_id );
-	my ($id, $post) = $self->generate_alias( $to );
-
-	my $alias       = $self->{Aliases}->create( $id, $from );
-	$self->add_to_alias( $alias, $post, @{ $parent->members() } );
-
-	$self->process_body( $alias, $post, @{ $self->{Message}->body() } );
 	$self->{Aliases}->save( $alias, $id );
 
 	$self->reply({ To => $from, Subject => "Cloned alias $alias_id => $id" },
@@ -103,7 +114,7 @@ sub address_field
 
 sub generate_alias
 {
-	my ($self, $add, $id) = @_;
+	my ($self, $id) = @_;
 
 	$id      ||= sprintf '%x', reverse scalar time;
 
@@ -112,17 +123,22 @@ sub generate_alias
 		$id    = sprintf '%x', ( reverse ( time() + rand($$) ));
 	}
 
-	my $host   = $add->host();
-	(my $base  = $add->user()) =~ s/\+([^+]+)$//;
+	return $id;
+}
 
-	my $post   = "$base+$id\@$host";
+sub post_address
+{
+	my ($self, $id) = @_;
+	my ($address)   = $self->address_field( 'to' );
+	my $host        = $address->host();
+	(my $base       = $address->user()) =~ s/\+([^+]+)$//;
 
-	return $id, $post;
+	return "$base+$id\@$host";
 }
 
 sub process_body
 {
-	my ($self, $alias, $alias_add, @body) = @_;
+	my ($self, $alias, @body) = @_;
 
 	my $attributes  = $alias->attributes();
 	while ( @body and $body[0] =~ /^(\w+): (.*)$/ )
@@ -132,13 +148,13 @@ sub process_body
 		shift @body;
 	}
 
-	$self->add_to_alias( $alias, $alias_add, @body );
+	return \@body;
 }
 
 sub reply
 {
 	my ($self, $headers, @body) = @_;
-	$headers->{Date} = localtime;
+	$headers->{'X-MSL-Seen'}    = '1';
 
 	my $mailer = Mail::Mailer->new();
 	$mailer->open( $headers );
@@ -163,6 +179,8 @@ sub command_unsubscribe
 sub process
 {
 	my $self    = shift;
+
+	return if $self->{Message}->get('X-MSL-Seen');
 	my $command = $self->find_command();
 	return $self->$command() if $command;
 
@@ -185,8 +203,9 @@ sub deliver
 	my ($self, $alias) = @_;
 
 	my $body    = $self->{Message}->body();
-	my $message = { map { ucfirst( $_ ) => scalar $self->{Message}->get( $_ ) }
-		qw( from cc to subject ) };
+	my $name    = $alias->name();
+	my $host    = ($self->address_field( 'To' ))[0]->host();
+	my $message = $self->copy_headers();
 
 	unless ($self->can_deliver( $alias, $message ))
 	{
@@ -195,28 +214,60 @@ sub deliver
 		return;
 	}
 
-	$self->add_to_alias( $alias, $message->{To}, delete $message->{Cc} )
-		if $alias->auto_add();
+	my $desc    = $alias->description() || '';
 
-	@{ $message }{ 'Bcc', 'Reply-To' } =
-		( $alias->members(), delete $message->{To} );
+	if ( $alias->auto_add() )
+	{	
+		$self->add_to_alias( $alias, $message->{To}, delete $message->{CC} );
+		$self->{Aliases}->save( $alias, $name );
+	}
+
+	$message->{Bcc}        = $alias->members();
+	$message->{'List-Id'}  = ( $desc ? qq|"$desc" | : '') .
+		"<$name.list-id.$host>"; 
+	$message->{'Reply-To'} = $message->{To};
 
 	$self->reply( $message, @$body, "To unsubscribe:" .
 		qq| reply to this sender alone with "*UNSUBSCRIBE*" in the subject.|
 	);
 }
 
+sub copy_headers
+{
+	my $self    = shift;
+	my $headers = $self->{Message}->head()->header_hashref();
+
+	while (my ($key, $value) = each %$headers)
+	{
+		next unless ref $value eq 'ARRAY';
+		chomp @$value;
+		$headers->{$key} = join(', ', @$value);
+	}
+
+	delete $headers->{'From '};
+
+	for my $header ( qw( from CC to subject ))
+	{
+		$headers->{ ucfirst($header) } = $self->{Message}->get( $header );
+	}
+
+	return $headers;
+}
+
+
 sub reject
 {
+	my $reason = $_[1] || "Invalid alias\n";
 	$! = 100;
-	die "Invalid alias\n";
+	die $reason;
 }
 
 sub notify
 {
-	my ($self, $alias, $id ) = splice( @_, 0, 3 );
+	my ($self, $alias, $id) = splice( @_, 0, 3 );
 
 	my $owner = $alias->owner();
+	my $desc  = $alias->description();
 
 	for my $address ( @_ )
 	{
@@ -225,7 +276,7 @@ sub notify
 			To         => $address, 
 			'Reply-To' => $id,
 			Subject    => "Added to alias $id",
-		}, "You have been subscribed to alias $id by $owner." );
+		}, "You have been subscribed to alias $id by $owner.\n\n", $desc );
 	}
 }
 
@@ -259,7 +310,7 @@ sub add_to_alias
 }
 
 1;
-__END__
+__DATA__
 
 =head1 NAME
 
@@ -322,7 +373,7 @@ subscription or creation message.  It will be sent to everyone currently
 subscribed to the list.  You do not need to use the Reply-All feature on your
 mailer; Mail::SimpleList sets the C<Reply-To> header automatically.
 
-If you do include other e-mail addresses in the C<Cc> header, Mail::SimpleList
+If you do include other e-mail addresses in the C<CC> header, Mail::SimpleList
 will, by default, automatically subscribe them to the list, informing them of
 this action and sending them the current message.  No one should receive
 duplicate messages, even if he is already subscribed.
@@ -361,7 +412,7 @@ clone.  Doug will also be added to this new list.
 
 =head1 DIRECTIVES
 
-Lists have five attributes.  Two, the list owner and the list members, are set
+Lists have six attributes.  Two, the list owner and the list members, are set
 automatically when the list is created.  You can specify the other attributes
 by including directives when you create or clone a list.
 
@@ -414,12 +465,31 @@ This should suffice for most purposes.
 
 =head2 Auto_add
 
-This directive governs whether addresses found in the C<Cc> header will be
+This directive governs whether addresses found in the C<CC> header will be
 added automatically to the list.  By default, it is enabled.  To disable it,
 use either directive form:
 
 	Auto_add: no
 	Auto_add: 0
+
+=head2 Description
+
+This is a single line that describes the purpose of the list.  It is sent to
+everyone when they are added to the list.  By default, it is blank.  To set a
+description, use the form:
+
+	Description: This list is for discussing fluoridation.
+
+=head2 Name
+
+This isn't a directive in the sense that it's an intrinsic part of a list.
+It's just a way to give a list a nicer name when it's being created.  Instead
+of having to rename a list to a nicer name, you can specify it with:
+
+	Name: meat-eaters
+
+Only letters, numbers, dashes, and the underscore characters are allowed in
+names.
 
 =head1 METHODS
 

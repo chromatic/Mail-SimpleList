@@ -3,11 +3,11 @@
 BEGIN
 {
 	chdir 't' if -d 't';
-	unshift @INC, '../lib', '../blib/lib';
+	use lib '../lib', '../blib/lib';
 }
 
 use strict;
-use Test::More tests => 51;
+use Test::More tests => 60;
 
 use_ok( 'Mail::SimpleList::Alias' ) or exit;
 can_ok( 'Mail::SimpleList::Alias', 'new' );
@@ -58,9 +58,10 @@ is( $alias->owner(), '',               '... blankening owner, if needed' );
 
 can_ok( $alias, 'owner' );
 $alias = Mail::SimpleList::Alias->new( owner => 'me' );
-is( $alias->owner(), 'me', 'owner() should return owner set in constructor' );
+is( $alias->owner(), 'me',        'owner() should be settable in constructor' );
 
-is( Mail::SimpleList::Alias->new()->owner(), '',    '... with a blank default' );
+is( Mail::SimpleList::Alias->new()->owner(), '',
+	                                     '... with a blank default' );
 
 $alias->owner( 'you' );
 
@@ -114,7 +115,8 @@ can_ok( $alias, 'attributes' );
 isa_ok( $alias->attributes(),
 	'HASH',                     'attributes() should return a reference to a' );
 is_deeply( $alias->attributes(),
-	{ owner => 1, closed => 1, expires => 1, auto_add => 1 },
+	{ owner => 1, closed => 1, expires => 1, auto_add => 1,
+		description => 1, name => 1 },
 	                            '... with the correct keys' );
 
 can_ok( $alias, 'auto_add' );
@@ -124,3 +126,18 @@ $alias->auto_add( 'no' );
 ok( ! $alias->auto_add(), '... disableable by the mutator call with "no"' );
 $alias = Mail::SimpleList::Alias->new( auto_add => 0 );
 ok( ! $alias->auto_add(), '... and in constructor' );
+
+for my $accessor (qw( description name ))
+{
+	can_ok( $alias, $accessor );
+	$alias->$accessor( 'foo' );
+	is( $alias->$accessor(), 'foo', "$accessor() should be mutator" );
+	$alias = Mail::SimpleList::Alias->new( $accessor => 'bar' );
+	is( $alias->$accessor(), 'bar', '... with value settable in constructor' );
+}
+
+$alias = Mail::SimpleList::Alias->new();
+is( $alias->description(), '',    'description() should be blank by default' );
+is( $alias->name(), undef,        'name() should be unset by default' );
+$alias->name( 'abc_123-)(*&$%(*&!|' );
+is( $alias->name(), 'abc_123-',   '... stripping out non-word characters' );

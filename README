@@ -1,6 +1,10 @@
 Mail::SimpleList README
 -----------------------
 
+Version 0.80, Sun Sep 21 20:41:18 UTC 2003
+Version 0.79, Fri Jul  4 19:14:54 GMT 2003
+Version 0.78, Mon Jun 30 04:51:58 GMT 2003
+Version 0.75, Sat Jun 28 20:13:22 GMT 2003, back home
 Version 0.70, Sun Jun 15 19:11:31 GMT 2003, somewhere over Alabama (maybe)
 
 Mail::SimpleList is a set of modules for creating and using small, simple
@@ -102,8 +106,8 @@ DIRECTIVES
 
 As of version 0.60, you can also specify additional directives in the body of
 the creation message.  The useful directives right now are 'Expires',
-'Auto_add', and 'Closed'.  Directives precede any subscribable addresses.  They
-take the form:
+'Auto_add', 'Closed', and 'Description'.  Directives precede any subscribable
+addresses.  They take the form:
 
 	Directive: argument string
 
@@ -138,6 +142,16 @@ removed from the headers of the message, so as not to receive duplicate
 messages.  For now, these addresses must appear in the Cc header, not the To
 header.
 
+Description is a simple, one-line description of the purpose of the alias.  It
+will be sent to everyone who is added to the alias.
+
+	Description: Let's have a cupcake party on 8 September.
+
+Name is an optional name for the alias.  If specified, it will be used instead
+of the randomly generated alias.
+
+	Name: jacobs-birthday
+
 ADVANCED USAGE
 --------------
 
@@ -160,12 +174,7 @@ up my sleeve.
 Any address in the To header besides the alias address appears to wreak some
 havoc with the program.  Try to avoid this for now.
 
-This is all the documentation there is for now, except for the tests.  The
-code's pretty simple, and I'm supposed to give a talk on this at the June 2003
-Portland Perl Mongers tech meeting, so I'll have better docs soon.
-
-There's no real help from within the program.  That should also be simple to
-add, especially unsubscription options.
+HELP IS HERE as of version 0.80.
 
 There's not much security on lists; address spoofing is possible.  I'd like to
 add optional cryptographic signing.
@@ -174,8 +183,7 @@ There's no archiving yet, but it should be fairly easy to add.
 
 There are a few hard-coded things, such as the alias delimiter.  That should be configurable.
 
-There's always room for a few more tests, though I'm not sure what they might
-be.
+There's might be room for a few more tests.
 
 LICENSE, COPYRIGHT, and CREDITS
 -------------------------------
@@ -185,4 +193,5 @@ Copyright 2003, chromatic <chromatic@wgz.org>
 This software is made available under the same license as Perl.
 
 This software would not have been possible without the inspiration of Simon
-Cozen's Mail::Audit.
+Cozen's Mail::Audit.  The Portland Perl Mongers specified many improvements.
+Allison Randal had a neat idea for giving aliases better names.

@@ -1,8 +1,55 @@
+0.80 Sun Sep 21 20:42:34 UTC 2003
+	- added lib/Mail/SimpleList/PodToHelp and t/podtohelp.t
+	- fill in command_help() in Mail::SimpleList
+	- update files for 0.80 release
+
+     Sun Sep 21 07:29:01 UTC 2003
+	- set Reply-To list address for normal responses
+	- fix caplitalization of CC header (docs and tests)
+
+0.79 Sun Sep 21 07:07:35 UTC 2003
+	- fix POD error in Mail::SimpleList::Alias
+
+	 Fri Jul  4 19:14:54 GMT 2003
+	- be sure to save list after auto_add
+	- remove Cc: headers appropriately after auto_add
+
+     Thu Jul  3 06:18:04 GMT 2003
+	- add List-Id and X-MSL-Seen headers
+	- disallow sending the same message to the alias twice
+	- allow the To header to remain
+	- allow the Date header to remain (Tim Maher and Allison Randal suggestion)
+	- disallow the 'From ' mbox heading (Tim Maher helped debug this one)
+
+0.78 Mon Jun 30 04:54:27 GMT 2003
+	- added Name directive to specify alias name (Allison Randal suggestion)
+	- updated docs to reflect this
+	- minor code shakeup to make it possible
+		- Mail::SimpleList::generate_alias()
+		- Mail::SimpleList::post_address()
+		- Mail::SimpleList::process_body()
+		- Mail::SimpleList::Aliases::create() -- no longer saves
+
+0.75 Sat Jun 28 20:12:54 GMT 2003
+	- added Description directive and documentation
+	- removed unused code from t/aliases.t
+	- copy all headers except the ones that need changing
+
+0.71 Sat Sep 20 23:47:10 UTC 2003
+	- fix hash order dependent test #57 in t/base.t
+	- fix t/lib/FakeIn.pm to generate better glob refs
+
 0.70 Sun Jun 15 19:14:08 GMT 2003
 	- added documentation
 	- added link to Portland Perl Mongers talk in README
 	- added support for list cloning
 	- miscellaneous improvements to acceptance/customer tests
+
+0.65 4 June 2003 (or thereabouts)
+	- improved tests with t/lib/FakeMail
+	- clean up after tests (remove t/alias)
+	- ensure that generated aliases never overlap (as much as possible)
+	- add alias cloning
 
 0.60 Fri May 30 01:35:20 GMT 2003
 	- added option for closed aliases

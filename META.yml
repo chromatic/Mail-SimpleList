@@ -1,11 +1,12 @@
 --- #YAML:1.0
 name: Mail-SimpleList
-version: 0.70
+version: 0.80
 license: perl
 distribution_type: module
 requires:
   Mail::Address: 1.53
   Mail::Internet: 1.53
+  Pod::Simple: ''
   Test::Exception: ''
   Test::MockObject: 0.11
   Test::Simple: 0.47
@@ -13,4 +14,16 @@ requires:
 recommends: {}
 build_requires: {}
 conflicts: {}
-generated_by: Module::Build version 0.16
+provides:
+  Mail::SimpleList:
+    file: lib/Mail/SimpleList.pm
+    version: 0.80
+  Mail::SimpleList::Alias:
+    file: lib/Mail/SimpleList/Alias.pm
+    version: 0.80
+  Mail::SimpleList::Aliases:
+    file: lib/Mail/SimpleList/Aliases.pm
+    version: 0.80
+  Mail::SimpleList::PodToHelp:
+    file: lib/Mail/SimpleList/PodToHelp.pm
+generated_by: Module::Build version 0.20
