@@ -1,0 +1,21 @@
+0.70 Sun Jun 15 19:14:08 GMT 2003
+	- added documentation
+	- added link to Portland Perl Mongers talk in README
+	- added support for list cloning
+	- miscellaneous improvements to acceptance/customer tests
+
+0.60 Fri May 30 01:35:20 GMT 2003
+	- added option for closed aliases
+	- added option for no auto add
+
+	 Thu May 29 06:56:08 GMT 2003
+	- added support for alias expiration
+	- fixed the bug that ate message bodies
+
+0.50 Mon May 26 01:36:43 GMT 2003
+	- initial release
+	- handles creating, replying, and unsubscribing
+
+pre-release
+	- was called something else
+	- wasn't quite as nice
