@@ -3,15 +3,7 @@ Mail::SimpleList README
 
 History:
 
-	Version 0.88, Fri Mar 26 04:29:29 UTC 2004, with two nice bugfixes
-	Version 0.87, Mon Mar 15 04:54:04 UTC 2004
-	Version 0.86, Tue Dec 30 00:21:24 UTC 2003
-	Version 0.81, Tue Oct 14 23:09:53 UTC 2003
-	Version 0.80, Sun Sep 21 20:41:18 UTC 2003
-	Version 0.79, Fri Jul  4 19:14:54 GMT 2003
-	Version 0.78, Mon Jun 30 04:51:58 GMT 2003
-	Version 0.75, Sat Jun 28 20:13:22 GMT 2003, back home
-	Version 0.70, Sun Jun 15 19:11:31 GMT 2003, somewhere over Alabama (maybe)
+	Version 0.90, around Sun Jul 11 03:31:56 UTC 2004
 
 Mail::SimpleList is a set of modules for creating and using small, simple
 mailing lists.  They're intended to be temporary and very easy to use.  They're
@@ -194,7 +186,7 @@ There might be room for a few more tests.
 LICENSE, COPYRIGHT, and CREDITS
 -------------------------------
 
-Copyright 2003 - 2004, chromatic <chromatic@wgz.org>
+Copyright 2003 - 2004, chromatic < chromatic at wgz dot org >
 
 This software is made available under the same license as Perl.
 

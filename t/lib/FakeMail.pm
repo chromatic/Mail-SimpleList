@@ -22,6 +22,22 @@ sub print
 
 sub close {}
 
+sub raw_message
+{
+	my $self    = shift;
+	my $body    = delete $self->{body};
+	my $message;
+
+	while (my ($header, $value) = each %{ $self })
+	{
+		$message .= "$header: $value\n";
+	}
+
+	$message .= "\n" . $body;
+
+	return $message;
+}
+
 sub AUTOLOAD
 {
 	my $self  = shift;

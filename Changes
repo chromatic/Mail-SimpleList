@@ -1,5 +1,12 @@
+0.90
+	Sun Jul 11 03:32:51 UTC 2004 ($Rev: 40 $, $Author: chromatic $)
+	- added raw_message() to t/lib/FakeMail.pm
+	- ported to Mail::Action 0.40 (Email::Simple, Email::MIME)
+	- added Mail::SimpleList::remove_alias_from()
+	- marked build requirements in Build.PL separately
+
 0.88
-	Fri Mar 26 04:28:34 UTC 2004 ($Rev: 37 $, $Author: chromatic $)
+	Fri Mar 26 04:28:34 UTC 2004 (Rev: 37, Author: chromatic)
 	- update version number for release
 
 	Fri Mar 26 04:26:31 UTC 2004 (Rev: 36, Author: chromatic)

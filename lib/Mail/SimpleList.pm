@@ -7,10 +7,10 @@ use base 'Mail::Action';
 use Carp 'croak';
 
 use Mail::Mailer;
-use Mail::Address;
+use Email::Address;
 
 use vars qw( $VERSION );
-$VERSION = '0.88';
+$VERSION = '0.90';
 
 use Mail::SimpleList::Aliases;
 
@@ -59,12 +59,12 @@ sub command_clone
 
 	my $from       = $self->address_field( 'from' );
 	my $message    = $self->message();
-	(my $subject   = $message->subject()) =~ s/^\*clone\*\s+//;
+	(my $subject   = $message->header( 'Subject' )) =~ s/^\*clone\*\s+//;
 	my ($alias_id) = $self->parse_alias( $subject );
 	my $addresses  = $self->storage();
 	my $parent     = $addresses->fetch( $alias_id );
 	my $alias      = $addresses->create( $from );
-	my $users      = $self->process_body($alias, @{ $message->body->lines() });
+	my $users      = $self->process_body( $alias );
 	my $id         = $self->generate_alias( $alias_id );
 	my $post       = $self->post_address( $id );
 
@@ -81,8 +81,11 @@ sub command_clone
 sub address_field
 {
 	my ($self, $field) = @_;
-	my @values = Mail::Address->parse( $self->message->get( $field ) );
-	return wantarray ? @values : $values[0]->format();
+
+	my $address        = $self->message->header( $field   );
+	my @values         = Email::Address->parse(  $address );
+
+	return wantarray ? @values : $values[0]->address();
 }
 
 sub generate_alias
@@ -121,7 +124,7 @@ sub command_unsubscribe
 {
 	my $self         = shift;
 	my ($alias, $id) = $self->fetch_address();
-	chomp( my $from  = $self->message->get( 'from' ) );
+	chomp( my $from  = $self->message->header( 'From' ) );
 
 	$self->reply({ To => $from, Subject => "Remove from $alias" },
 		 ($alias->remove_address( $from ) and
@@ -135,7 +138,7 @@ sub process
 {
 	my $self    = shift;
 
-	return if $self->message->get('X-MSL-Seen');
+	return if $self->message->header('X-MSL-Seen');
 	my $command = $self->find_command();
 	return $self->$command() if $command;
 
@@ -149,7 +152,8 @@ sub deliver
 	my ($self, $alias) = @_;
 
 	my $name    = $alias->name();
-	my $host    = ($self->address_field( 'To' ))[0]->host();
+	my $sent_to = ( $self->address_field( 'To' ) )[0];
+	my $host    = $sent_to->host();
 	my $message = $self->copy_headers();
 
 	unless ($self->can_deliver( $alias, $message ))
@@ -164,7 +168,10 @@ sub deliver
 
 	if ( $alias->auto_add() )
 	{
-		$self->add_to_alias( $alias, $message->{To}, delete $message->{Cc} );
+		my @to_friends = $self->remove_alias_from( 'To', $sent_to );
+		my @cc_friends = $self->remove_alias_from( 'Cc', $sent_to );
+
+		$self->add_to_alias( $alias, @to_friends, @cc_friends );
 		$self->storage->save( $alias, $name );
 	}
 
@@ -178,26 +185,50 @@ sub deliver
 		qq| reply to this sender alone with "*UNSUBSCRIBE*" in the subject.\n|
 	);
 
-	$self->reply( $message, @$body );
+	$self->reply( $message, $body );
+}
+
+sub remove_alias_from
+{
+	my ($self, $field, $alias) = @_;
+	my $alias_addy             = ( Email::Address->parse( $alias ) )[0]
+		->address();
+
+	my @to; 
+
+	for my $address ( map { $_->address() } $self->address_field( $field ) )
+	{
+		next if $address eq $alias_addy;
+		push @to, $address;
+	}
+
+	return @to;
 }
 
 sub add_signature
 {
 	my ($self, $sig)  = @_;
 	my $message       = $self->message();
+	my @parts         = $message->parts();
 
-	unless ($message->body->isMultipart())
+	if (@parts == 1)
 	{
-		my     $lines = $message->decoded->lines();
-		push  @$lines, $sig;
-		return $lines;
+		$message->body_set( $message->body() . $sig );
+	}
+	else
+	{
+		my $sig_part  = Email::MIME->new( '' );
+
+		$sig_part->content_type_set( 'text/plain' );
+		$sig_part->encoding_set( '7bit' );
+		$sig_part->disposition_set( 'attachment' );
+		$sig_part->body_set( $sig );
+
+		push @parts, $sig_part;
+		$message->parts_set( \@parts );
 	}
 
-	my $sig_part      = Mail::Message::Body->new(
-		data => $sig, message => $message, mime_type => 'text/plain'
-	);
-
-	return $message->body->attach( $sig_part )->decoded->lines();
+	return $message->body_raw();
 }
 
 sub reject
@@ -423,7 +454,7 @@ This is a single line that describes the purpose of the list.  It is sent to
 everyone when they are added to the list.  By default, it is blank.  To set a
 description, use the form:
 
-	Description: This list is for discussing fluoridation.
+	Description: A list for discussing fluoridation.
 
 =head2 Name
 
@@ -456,9 +487,9 @@ Processes one incoming message.
 
 =head1 AUTHOR
 
-chromatic, C<chromatic@wgz.org>, with suggestions from various friends and
-family as well as the subset of the Portland Perl Mongers who do not appear in
-a previous category.
+chromatic, C<chromatic at wgz dot org>, with suggestions from various friends
+and family as well as the subset of the Portland Perl Mongers who do not appear
+in a previous category.
 
 =head1 BUGS
 
@@ -486,6 +517,6 @@ sending)
 
 =head1 COPYRIGHT
 
-Copyright (c) 2003, chromatic.  All rights reserved.  This module is
+Copyright (c) 2003 - 2004, chromatic.  All rights reserved.  This module is
 distributed under the same terms as Perl itself, in the hope that it is useful
-but certainly under no guarantee.  Hey, it's free.
+but certainly under no warranty.  Hey, it's free.

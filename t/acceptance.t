@@ -409,13 +409,13 @@ you@work
 -- 
 Description: This alias is about cheese.
 you@home
-
 END_HERE
 
 $ml = Mail::SimpleList->new( 'alias', $fake_glob );
 $ml->process();
 $count = @mails;
 is( $count, 2,           '... should generate only 2 mails' );
+
 unlike( $mails[0]->body(),
 	qr/alias is about/,  '... ignoring commands after signature delimiter' );
 
@@ -425,36 +425,27 @@ is_deeply( \@recipients, [ 'me@home', 'you@work' ],
 
 diag( 'Respect multi-part messages' );
 
-my $boundary = "=-o/TyUX3mnxrfgX+Lef56";
-$fake_glob = FakeIn->new( split(/\n/, <<"END_HERE" ) );
+my $top_mail = Email::MIME->new( <<END_HERE );
 Subject: attachment test
-From: me\@home
-To: $alias_add
-Content-Type: multipart/mixed; boundary="$boundary"
-Mime-Version: 1.0
-
-
---=-o/TyUX3mnxrfgX+Lef56
-Content-Type: text/plain
-Content-Transfer-Encoding: 7bit
-
-hey there
-
--- 
-my signature
-
---=-o/TyUX3mnxrfgX+Lef56
-Content-Disposition: attachment; filename=hi.txt
-Content-Type: text/plain; name=hi.txt; charset=
-Content-Transfer-Encoding: 7bit
-
-Hi there!
-
---=-o/TyUX3mnxrfgX+Lef56--
+From:    me\@home
+To:      $alias_add
 END_HERE
 
-@mails = ();
-$ml = Mail::SimpleList->new( 'alias', $fake_glob );
+my $greet    = Email::MIME->new( '' );
+$greet->content_type_set( 'text/plain' );
+$greet->encoding_set( '7bit' );
+$greet->body_set( "hey there\n\n--\nmy signature\n" );
+
+my $hi_file  = Email::MIME->new( '' );
+$hi_file->content_type_set( 'text/plain; name=hi.txt' );
+$hi_file->encoding_set( '7bit' );
+$hi_file->body_set( "Hi there!\n" );
+
+$top_mail->parts_set( [ $greet, $hi_file ] );
+
+$fake_glob = FakeIn->new( split(/\n/, $top_mail->as_string() ));
+@mails     = ();
+$ml = Mail::SimpleList->new( 'alias',  $fake_glob );
 $ml->process();
 
 $count = @mails;
@@ -463,7 +454,8 @@ my $ct = 'Content-type';
 like( $mails[0]->$ct(),  qr|multipart/mixed|, '... maintaining content type' );
 
 # get multiparts but strip out delimiter bits
-my $body  = $mails[0]->body();
-my @parts = grep { $_ !~ /^--$/ } split( quotemeta( $boundary ), $body );
+my $message = Email::MIME->new( $mails[0]->raw_message() );
+my @parts   = $message->parts();
 is( @parts, 3,                               '... adding a signature part' );
-like( $parts[-1], qr/\n-- \nTo unsubscribe/, '... as the last element' );
+like( $parts[-1]->body(),
+	qr/\n-- \nTo unsubscribe/, '... as the last element' );
