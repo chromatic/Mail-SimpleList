@@ -12,7 +12,7 @@ use FakeIn;
 use FakeMail;
 use File::Path 'rmtree';
 
-use Test::More tests => 71;
+use Test::More tests => 72;
 use Test::MockObject;
 
 mkdir 'alias';
@@ -348,6 +348,7 @@ From: me\@home
 To: $alias_add
 Subject: test header
 Message-Id: 12tiemyshoe34shutthedoor
+Delivered-To: $alias_add
 
 END_HERE
 
@@ -358,6 +359,9 @@ $mail   = shift @mails;
 my $mid = 'Message-id';
 is( $mail->$mid(), '12tiemyshoe34shutthedoor',
 	'message headers should be preserved' );
+my $dto = 'Delivered-To';
+isnt( $mail->$dto(), $alias_add,
+	'... but Delivered-To should be removed' );
 
 diag( 'Create a new alias with a given name' );
 
@@ -461,5 +465,5 @@ like( $mails[0]->$ct(),  qr|multipart/mixed|, '... maintaining content type' );
 # get multiparts but strip out delimiter bits
 my $body  = $mails[0]->body();
 my @parts = grep { $_ !~ /^--$/ } split( quotemeta( $boundary ), $body );
-is( @parts, 3,                        '... adding a signature part' );
-like( $parts[-1], qr/To unsubscribe/, '... as the last element' );
+is( @parts, 3,                               '... adding a signature part' );
+like( $parts[-1], qr/\n-- \nTo unsubscribe/, '... as the last element' );

@@ -11,7 +11,7 @@ use strict;
 use File::Copy;
 use Mail::Header;
 
-use Test::More tests => 115;
+use Test::More tests => 116;
 use Test::Exception;
 use Test::MockObject;
 
@@ -95,10 +95,11 @@ can_ok( $ml, 'deliver' );
 my $body = [];
 my %headers =
 (
-	To      => 'to@home',
-	From    => 'from@home',
-	Subject => 'Simple explanation',
-	Cc      => 'nonsml',
+	To             => 'to@home',
+	From           => 'from@home',
+	Subject        => 'Simple explanation',
+	Cc             => 'nonsml',
+	'Delivered-to' => 'to you',
 );
 
 $mock->mock( get => sub { $headers{$_[1]} } )
@@ -111,7 +112,7 @@ $mock->mock( get => sub { $headers{$_[1]} } )
 	 ->set_always( members => [qw( foo bar baz )] )
 	 ->set_series( expires => 100, time() + 100, 0 )
 	 ->set_always( head => $mock )
-	 ->mock( names => sub { qw( To From Subject Cc ) } )
+	 ->mock( names => sub { qw( To From Subject Cc Delivered-to ) } )
 	 ->mock( print => sub { @$body = @_ } )
 	 ->clear();
 
@@ -144,7 +145,7 @@ my @ata;
 	ok( $cd,                  'deliver() should check deliverability' );
 	ok( ! $result,            '... returning false if it cannot be delivered' );
 
-	my ($method, $args) = $mock->next_call( 8 );
+	my ($method, $args) = $mock->next_call( 9 );
 	is( $method, 'open',                           '... opening message' );
 	is( $args->[1]{To},      'from@home',          '... to sender' );
 	is( $args->[1]{Subject}, 'Simple explanation', '... with failure subject' );
@@ -176,9 +177,9 @@ my @ata;
 	$result = $ml->deliver( $mock_alias );
 }
 
-like( "@$body", qr/To unsubscribe:/,        '... adding unsubscribe message' );
+like( "@$body", qr/\n-- \nTo unsubscribe:/, '... adding unsubscribe message' );
 
-($method, my $args) = $mock->next_call( 12 );
+($method, my $args) = $mock->next_call( 13 );
 is( $method, 'open',                        '... opening message' );
 is_deeply( $args->[1]{Bcc},
 	[qw( baz bar foo )],                    '... blind cc-ing list recipients');
@@ -187,14 +188,15 @@ is( "@{ $ata[0] }",
 is( $args->[1]{'List-Id'},
 	'<my name.list-id.snafu>',               '... setting list id without desc');
 
-($method, $args) = $mock->next_call( 14 );
+($method, $args) = $mock->next_call( 15 );
 is( @ata, 1, '... not adding addresses without auto-add' );
 is_deeply( $args->[1]{Cc}, 'nonsml',        '... keeping Cc without auto-add' );
 
-($method, $args) = $mock->next_call( 14 );
+($method, $args) = $mock->next_call( 15 );
 is( $args->[1]{'List-Id'}, '"this is my list" <my name.list-id.snafu>',
 	                                        '... setting list id with desc' );
-
+ok( ! exists $args->[1]{'Delivered-to'}, 
+	                                        '... removing Delivered-To header');
 can_ok( $ml, 'reject' );
 throws_ok { $ml->reject() }
 	qr/Invalid alias/,                      'reject() should throw error';

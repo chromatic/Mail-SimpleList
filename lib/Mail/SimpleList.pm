@@ -10,7 +10,7 @@ use Mail::Mailer;
 use Mail::Address;
 
 use vars qw( $VERSION );
-$VERSION = '0.87';
+$VERSION = '0.88';
 
 use Mail::SimpleList::Aliases;
 
@@ -172,8 +172,9 @@ sub deliver
 	$message->{'List-Id'}  = ( $desc ? qq|"$desc" | : '') .
 		"<$name.list-id.$host>"; 
 	$message->{'Reply-To'} = $message->{To};
+	delete $message->{'Delivered-to'};
 
-	my $body    = $self->add_signature( "To unsubscribe:" .
+	my $body    = $self->add_signature( "\n-- \nTo unsubscribe:" .
 		qq| reply to this sender alone with "*UNSUBSCRIBE*" in the subject.\n|
 	);
 

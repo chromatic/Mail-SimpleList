@@ -1,11 +1,19 @@
+0.88
+	Fri Mar 26 04:28:34 UTC 2004 ($Rev: 37 $, $Author: chromatic $)
+	- update version number for release
+
+	Fri Mar 26 04:26:31 UTC 2004 (Rev: 36, Author: chromatic)
+	- delete Delivered-To header in Mail::SimpleList::deliver() (bounce bug fix)
+	- delineate unsubscribe message better
+
 0.87
-	Mon Mar 15 20:27:25 UTC 2004 ($Rev: 33 $, $Author: chromatic $)
+	Mon Mar 15 20:27:25 UTC 2004 (Rev: 33, Author: chromatic)
 	- fix a documentation typo (Brett Warden)
 
-	Mon Mar 15 06:10:52 UTC 2004 (Rev: 32, $Author: chromatic $)
+	Mon Mar 15 06:10:52 UTC 2004 (Rev: 32, Author: chromatic)
 	- mark dependency on Mail::Action 0.30 in Build.PL
 
-	Mon Mar 15 05:57:26 UTC 2004 (Rev: 31, $Author: chromatic $)
+	Mon Mar 15 05:57:26 UTC 2004 (Rev: 31, Author: chromatic)
 	- fix spelling of Simon's name in README (sorry)
 
 	Mon Mar 15 02:35:51 UTC 2004 (Rev: 31, Author: chromatic)

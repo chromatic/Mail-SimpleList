@@ -1,6 +1,6 @@
 --- #YAML:1.0
 name: Mail-SimpleList
-version: 0.87
+version: 0.88
 author:
   - chromatic <chromatic@wgz.org>
 abstract: |-
@@ -8,7 +8,7 @@ abstract: |-
 license: perl
 requires:
   Class::Roles: 0.30
-  Mail::Action: 0.20
+  Mail::Action: 0.30
   Mail::Address: 1.53
   Mail::Internet: 1.53
   Pod::Simple: ''
@@ -19,7 +19,7 @@ requires:
 provides:
   Mail::SimpleList:
     file: lib/Mail/SimpleList.pm
-    version: 0.87
+    version: 0.88
   Mail::SimpleList::Alias:
     file: lib/Mail/SimpleList/Alias.pm
     version: 0.81
