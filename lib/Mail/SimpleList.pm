@@ -8,10 +8,9 @@ use Carp 'croak';
 
 use Mail::Mailer;
 use Mail::Address;
-use Mail::Internet;
 
 use vars qw( $VERSION );
-$VERSION = '0.86';
+$VERSION = '0.87';
 
 use Mail::SimpleList::Aliases;
 
@@ -60,12 +59,12 @@ sub command_clone
 
 	my $from       = $self->address_field( 'from' );
 	my $message    = $self->message();
-	(my $subject   = $message->get( 'Subject' )) =~ s/^\*clone\*\s+//;
+	(my $subject   = $message->subject()) =~ s/^\*clone\*\s+//;
 	my ($alias_id) = $self->parse_alias( $subject );
 	my $addresses  = $self->storage();
 	my $parent     = $addresses->fetch( $alias_id );
 	my $alias      = $addresses->create( $from );
-	my $users      = $self->process_body( $alias, @{ $message->body() } );
+	my $users      = $self->process_body($alias, @{ $message->body->lines() });
 	my $id         = $self->generate_alias( $alias_id );
 	my $post       = $self->post_address( $id );
 
@@ -149,7 +148,6 @@ sub deliver
 {
 	my ($self, $alias) = @_;
 
-	my $body    = $self->message->body();
 	my $name    = $alias->name();
 	my $host    = ($self->address_field( 'To' ))[0]->host();
 	my $message = $self->copy_headers();
@@ -166,7 +164,7 @@ sub deliver
 
 	if ( $alias->auto_add() )
 	{
-		$self->add_to_alias( $alias, $message->{To}, delete $message->{CC} );
+		$self->add_to_alias( $alias, $message->{To}, delete $message->{Cc} );
 		$self->storage->save( $alias, $name );
 	}
 
@@ -175,9 +173,30 @@ sub deliver
 		"<$name.list-id.$host>"; 
 	$message->{'Reply-To'} = $message->{To};
 
-	$self->reply( $message, @$body, "To unsubscribe:" .
-		qq| reply to this sender alone with "*UNSUBSCRIBE*" in the subject.|
+	my $body    = $self->add_signature( "To unsubscribe:" .
+		qq| reply to this sender alone with "*UNSUBSCRIBE*" in the subject.\n|
 	);
+
+	$self->reply( $message, @$body );
+}
+
+sub add_signature
+{
+	my ($self, $sig)  = @_;
+	my $message       = $self->message();
+
+	unless ($message->body->isMultipart())
+	{
+		my     $lines = $message->decoded->lines();
+		push  @$lines, $sig;
+		return $lines;
+	}
+
+	my $sig_part      = Mail::Message::Body->new(
+		data => $sig, message => $message, mime_type => 'text/plain'
+	);
+
+	return $message->body->attach( $sig_part )->decoded->lines();
 }
 
 sub reject
@@ -337,9 +356,9 @@ clone.  Doug will also be added to this new list.
 
 =head1 DIRECTIVES
 
-Lists have six attributes.  Two, the list owner and the list members, are set
-automatically when the list is created.  You can specify the other attributes
-by including directives when you create or clone a list.
+Lists have seven attributes.  Creating a list will set two attributes, the list
+owner and the list members.  You can specify the other attributes by including
+directives when you create or clone a list.
 
 Directives go in the body of the creation or clone message, B<before> the list
 of e-mail addresses to add.  They take the form:

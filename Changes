@@ -1,5 +1,24 @@
+0.87
+	Mon Mar 15 20:27:25 UTC 2004 ($Rev: 33 $, $Author: chromatic $)
+	- fix a documentation typo (Brett Warden)
+
+	Mon Mar 15 06:10:52 UTC 2004 (Rev: 32, $Author: chromatic $)
+	- mark dependency on Mail::Action 0.30 in Build.PL
+
+	Mon Mar 15 05:57:26 UTC 2004 (Rev: 31, $Author: chromatic $)
+	- fix spelling of Simon's name in README (sorry)
+
+	Mon Mar 15 02:35:51 UTC 2004 (Rev: 31, Author: chromatic)
+	- improve multi-part message handling, especially with sigs
+	- bump version number
+	- update examplefilter.pl to show procmail workaround
+
+	Thu Mar 11 01:23:35 UTC 2004 (Rev: 31, Author: chromatic)
+	- ported to new Mail::Action (using Mail::Message, not Mail::Internet)
+	- set author keyword expansion on Changes
+
 0.86 
-	Tue Dec 30 00:21:35 UTC 2003 ($Rev$)
+	Tue Dec 30 00:21:35 UTC 2003 (Rev: 27)
 	- fix portability of t/aliases.t
 	- should pass tests on non-Unix platforms now
 

@@ -12,7 +12,7 @@ use FakeIn;
 use FakeMail;
 use File::Path 'rmtree';
 
-use Test::More tests => 67;
+use Test::More tests => 71;
 use Test::MockObject;
 
 mkdir 'alias';
@@ -281,7 +281,7 @@ is_deeply( $alias->members(), [ 'me@home' ],
 
 $count = @mails;
 $mail  = shift @mails;
-is( $mail->CC(), 'you@there',
+is( $mail->Cc(), 'you@there',
                            '... but should keep them on the list' );
 is_deeply( $mail->Bcc(),
 	[ 'me@home' ],         '... along with alias subscribers' );
@@ -355,7 +355,7 @@ $ml = Mail::SimpleList->new( 'alias', $fake_glob );
 $ml->process();
 
 $mail   = shift @mails;
-my $mid = 'Message-Id';
+my $mid = 'Message-id';
 is( $mail->$mid(), '12tiemyshoe34shutthedoor',
 	'message headers should be preserved' );
 
@@ -418,3 +418,48 @@ unlike( $mails[0]->body(),
 my @recipients = sort map { $_->To() } @mails;
 is_deeply( \@recipients, [ 'me@home', 'you@work' ],
 	                     '... only adding the addresses before the delimiter' );
+
+diag( 'Respect multi-part messages' );
+
+my $boundary = "=-o/TyUX3mnxrfgX+Lef56";
+$fake_glob = FakeIn->new( split(/\n/, <<"END_HERE" ) );
+Subject: attachment test
+From: me\@home
+To: $alias_add
+Content-Type: multipart/mixed; boundary="$boundary"
+Mime-Version: 1.0
+
+
+--=-o/TyUX3mnxrfgX+Lef56
+Content-Type: text/plain
+Content-Transfer-Encoding: 7bit
+
+hey there
+
+-- 
+my signature
+
+--=-o/TyUX3mnxrfgX+Lef56
+Content-Disposition: attachment; filename=hi.txt
+Content-Type: text/plain; name=hi.txt; charset=
+Content-Transfer-Encoding: 7bit
+
+Hi there!
+
+--=-o/TyUX3mnxrfgX+Lef56--
+END_HERE
+
+@mails = ();
+$ml = Mail::SimpleList->new( 'alias', $fake_glob );
+$ml->process();
+
+$count = @mails;
+is( $count, 1,           '... should generate only one mail' );
+my $ct = 'Content-type';
+like( $mails[0]->$ct(),  qr|multipart/mixed|, '... maintaining content type' );
+
+# get multiparts but strip out delimiter bits
+my $body  = $mails[0]->body();
+my @parts = grep { $_ !~ /^--$/ } split( quotemeta( $boundary ), $body );
+is( @parts, 3,                        '... adding a signature part' );
+like( $parts[-1], qr/To unsubscribe/, '... as the last element' );

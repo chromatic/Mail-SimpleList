@@ -5,7 +5,7 @@ my $build = Module::Build->new(
 	license     => 'perl',
 	requires    => {
 		Class::Roles     => '0.30',
-		Mail::Action     => '0.20',
+		Mail::Action     => '0.30',
 		Mail::Address    => '1.53',
 		Mail::Internet   => '1.53',
 		Pod::Simple      => '',
@@ -15,6 +15,7 @@ my $build = Module::Build->new(
 		YAML             => '0.35',
 	},
 	dist_version_from => 'lib/Mail/SimpleList.pm',
+	dist_author       => 'chromatic <chromatic@wgz.org>',
 );
 
 $build->create_build_script;

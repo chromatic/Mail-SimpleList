@@ -1,6 +1,7 @@
 Mail::SimpleList README
 -----------------------
 
+Version 0.87, Mon Mar 15 04:54:04 UTC 2004
 Version 0.86, Tue Dec 30 00:21:24 UTC 2003
 Version 0.81, Tue Oct 14 23:09:53 UTC 2003
 Version 0.80, Sun Sep 21 20:41:18 UTC 2003
@@ -190,10 +191,10 @@ There's might be room for a few more tests.
 LICENSE, COPYRIGHT, and CREDITS
 -------------------------------
 
-Copyright 2003, chromatic <chromatic@wgz.org>
+Copyright 2003 - 2004, chromatic <chromatic@wgz.org>
 
 This software is made available under the same license as Perl.
 
 This software would not have been possible without the inspiration of Simon
-Cozen's Mail::Audit.  The Portland Perl Mongers specified many improvements.
+Cozens' Mail::Audit.  The Portland Perl Mongers specified many improvements.
 Allison Randal had a neat idea for giving aliases better names.

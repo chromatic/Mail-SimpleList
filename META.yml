@@ -1,8 +1,11 @@
 --- #YAML:1.0
 name: Mail-SimpleList
-version: 0.86
+version: 0.87
+author:
+  - chromatic <chromatic@wgz.org>
+abstract: |-
+  module for managing simple, temporary, easy mailing lists
 license: perl
-distribution_type: module
 requires:
   Class::Roles: 0.30
   Mail::Action: 0.20
@@ -13,17 +16,14 @@ requires:
   Test::MockObject: 0.11
   Test::Simple: 0.47
   YAML: 0.35
-recommends: {}
-build_requires: {}
-conflicts: {}
 provides:
   Mail::SimpleList:
     file: lib/Mail/SimpleList.pm
-    version: 0.86
+    version: 0.87
   Mail::SimpleList::Alias:
     file: lib/Mail/SimpleList/Alias.pm
     version: 0.81
   Mail::SimpleList::Aliases:
     file: lib/Mail/SimpleList/Aliases.pm
     version: 0.81
-generated_by: Module::Build version 0.20
+generated_by: Module::Build version 0.24

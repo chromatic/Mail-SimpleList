@@ -13,17 +13,23 @@ sub new
 sub TIEHANDLE
 {
 	my ($class, @lines) = @_;
-	bless \@lines, $class;
+	bless [ map { "$_$/"} @lines ], $class;
 }
 
 sub READLINE
 {
 	my $self = shift;
 	return unless @$self;
-	return shift @$self unless wantarray;
-	my @lines = @$self;
-	@$self    = ();
-	return @lines;
+
+	if (wantarray())
+	{
+		my @lines = @$self;
+		@$self    = ();
+		return @lines;
+	}
+
+	return join('', @$self) unless defined $/;
+	return shift @$self;
 }
 
 sub FILENO
