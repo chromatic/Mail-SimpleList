@@ -9,6 +9,7 @@ BEGIN
 use strict;
 
 use Cwd;
+use Config;
 use File::Path;
 use File::Spec;
 
@@ -50,11 +51,18 @@ can_ok( $aliases, 'exists' );
 	open( FOO, '>' . $foo_file );
 	print FOO 'test';
 
-	link $foo_file, File::Spec->catfile( $storage_dir, '12345.sml' );
+	link $foo_file, File::Spec->catfile( $storage_dir, '12345.sml' )
+		if $Config{d_symlink};
 }
 
 ok( $aliases->exists( 'foo' ),     'exists() should be true if alias exists' );
-ok( $aliases->exists( 12345 ),     '... or if alias is a link' );
+
+SKIP:
+{
+	skip( "No symlinks in this version", 1 ) unless $Config{d_symlink};
+	ok( $aliases->exists( 12345 ),     '... or if alias is a link' );
+}
+
 ok( ! $aliases->exists( 'unfoo' ), '... false otherwise' );
 
 can_ok( $aliases, 'create' );
@@ -83,7 +91,8 @@ is( $aliases->storage_file( 'foo' ),
 	'storage_file() should return valid alias filepath' );
 {
 	local $aliases->{storage_dir} = 'newdir/';
-	is( $aliases->storage_file( 'bar' ), 'newdir/bar.sml',
+	is( $aliases->storage_file( 'bar' ),
+		File::Spec->catfile(qw( newdir bar.sml )),
 		'... respecting alias dir' );
 }
 

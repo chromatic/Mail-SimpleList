@@ -11,7 +11,7 @@ use Mail::Address;
 use Mail::Internet;
 
 use vars qw( $VERSION );
-$VERSION = '0.85';
+$VERSION = '0.86';
 
 use Mail::SimpleList::Aliases;
 

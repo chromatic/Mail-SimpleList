@@ -1,5 +1,13 @@
+0.86 
+	Tue Dec 30 00:21:35 UTC 2003 ($Rev$)
+	- fix portability of t/aliases.t
+	- should pass tests on non-Unix platforms now
+
 0.85
-	Sat Dec 13 22:37:22 UTC 2003 ($Rev: 25 $)
+	Sun Dec 14 01:00:13 UTC 2003 (Rev: 26)
+	- update dependency on Mail::Action
+
+	Sat Dec 13 22:37:22 UTC 2003 (Rev: 25)
 	- use Mail::Action::Address roles in Mail::SimpleList::Alias
 	- add dependency on Class::Roles
 

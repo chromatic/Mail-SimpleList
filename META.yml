@@ -1,6 +1,6 @@
 --- #YAML:1.0
 name: Mail-SimpleList
-version: 0.85
+version: 0.86
 license: perl
 distribution_type: module
 requires:
@@ -19,7 +19,7 @@ conflicts: {}
 provides:
   Mail::SimpleList:
     file: lib/Mail/SimpleList.pm
-    version: 0.85
+    version: 0.86
   Mail::SimpleList::Alias:
     file: lib/Mail/SimpleList/Alias.pm
     version: 0.81
