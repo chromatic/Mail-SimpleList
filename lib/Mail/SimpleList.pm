@@ -14,7 +14,7 @@ use Mail::SimpleList::PodToHelp;
 use Mail::SimpleList::Aliases;
 
 use vars qw( $VERSION );
-$VERSION = '0.80';
+$VERSION = '0.81';
 
 sub new
 {
@@ -148,7 +148,21 @@ sub process_body
 		shift @body;
 	}
 
-	return \@body;
+	return $self->remove_signature( \@body );
+}
+
+sub remove_signature
+{
+	my ($self, $body) = @_;
+
+	my @newbody;
+
+	while (@$body and $body->[0] !~ /^-- $/)
+	{
+		push @newbody, shift @$body;
+	}
+
+	return \@newbody;
 }
 
 sub reply

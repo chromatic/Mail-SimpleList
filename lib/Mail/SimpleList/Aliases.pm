@@ -12,7 +12,7 @@ use Fcntl ':flock';
 use Mail::SimpleList::Alias;
 
 use vars qw( $VERSION );
-$VERSION = '0.80';
+$VERSION = '0.81';
 
 sub new
 {

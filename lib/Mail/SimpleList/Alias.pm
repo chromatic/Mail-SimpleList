@@ -4,7 +4,7 @@ use strict;
 use Mail::Address;
 
 use vars qw( $VERSION );
-$VERSION = '0.80';
+$VERSION = '0.81';
 
 sub new
 {

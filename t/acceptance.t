@@ -12,7 +12,7 @@ use FakeIn;
 use FakeMail;
 use File::Path 'rmtree';
 
-use Test::More tests => 64;
+use Test::More tests => 67;
 use Test::MockObject;
 
 mkdir 'alias';
@@ -394,3 +394,27 @@ like( $mail->body(), qr/USING LISTS/,
 like( $mail->body(), qr/DIRECTIVES/, 
 	'... and DIRECTIVES sections from docs' );
 is( $mail->To(), "me\@hoome", '... replying to sender' );
+
+diag( 'Obey signature delimiter' );
+$fake_glob = FakeIn->new( split(/\n/, <<'END_HERE' ) );
+From: me@home
+To: alias@there
+Subject: *new*
+
+you@work
+-- 
+Description: This alias is about cheese.
+you@home
+
+END_HERE
+
+$ml = Mail::SimpleList->new( 'alias', $fake_glob );
+$ml->process();
+$count = @mails;
+is( $count, 2,           '... should generate only 2 mails' );
+unlike( $mails[0]->body(),
+	qr/alias is about/,  '... ignoring commands after signature delimiter' );
+
+my @recipients = sort map { $_->To() } @mails;
+is_deeply( \@recipients, [ 'me@home', 'you@work' ],
+	                     '... only adding the addresses before the delimiter' );

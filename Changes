@@ -1,3 +1,7 @@
+0.81 Tue Oct 14 23:05:08 UTC 2003
+	- ignore signatures when creating new lists (Brett Warden)
+	- update files for 0.81 release
+
 0.80 Sun Sep 21 20:42:34 UTC 2003
 	- added lib/Mail/SimpleList/PodToHelp and t/podtohelp.t
 	- fill in command_help() in Mail::SimpleList
