@@ -11,7 +11,7 @@ use Class::Roles
 use Mail::Address;
 
 use vars qw( $VERSION );
-$VERSION = '0.81';
+$VERSION = '0.92';
 
 sub new
 {

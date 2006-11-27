@@ -1,18 +1,15 @@
-#!/usr/bin/perl -w
-
-BEGIN
-{
-	chdir 't' if -d 't';
-	use lib '../lib', '../blib/lib', 'lib';
-}
+#! perl -T
 
 use strict;
+use warnings;
+
+use lib 't/lib';
 
 use FakeIn;
 use FakeMail;
 use File::Path 'rmtree';
 
-use Test::More tests => 72;
+use Test::More tests => 73;
 use Test::MockObject;
 
 mkdir 'alias';
@@ -83,7 +80,8 @@ diag( "Send a message to the alias '$alias_add'" );
 
 $fake_glob = FakeIn->new( split(/\n/, <<END_HERE) );
 From: me\@home
-To: $alias_add
+To: someone\@there
+Delivered-To: $alias_add
 Subject: Hi there
 
 hi there
@@ -143,7 +141,7 @@ Subject: *new*
 Expires: 7d
 
 you@elsewhere
-he@his.place
+he.is@his.place
 she@hers
 END_HERE
 
@@ -163,7 +161,7 @@ $alias = $ml->storage->fetch( $alias_id );
 ok( $alias->expires(), '... setting expiration on the alias to true' );
 
 is_deeply( $alias->members(),
-	[ 'me@home', 'you@elsewhere', 'he@his.place', 'she@hers' ],
+	[ 'me@home', 'you@elsewhere', 'he.is@his.place', 'she@hers' ],
 	                   '... and collecting mail addresses properly' );
 is( $count, 4,         '... sending a message to creator and each subscriber' );
 
@@ -293,6 +291,7 @@ To: alias\@there
 Subject: *clone* $alias_add
 
 Auto_add: 1
+Name: clonetest
 END_HERE
 
 @mails = ();
@@ -310,6 +309,7 @@ $alias       = $ml->storage->fetch( $alias_id );
 
 is_deeply( $alias->members(), $oldalias->members(),
 	                                'cloning a list should clone its members' );
+is( $alias_id, 'clonetest',         '... setting its name, if given' );
 ok( $alias->auto_add(),             '... processing directives' );
 is( $mail->To(),     'me@home',     '... responding to cloner' );
 is( $alias->owner(), 'me@home',     '... setting owner to cloner' );

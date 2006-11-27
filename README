@@ -3,7 +3,9 @@ Mail::SimpleList README
 
 History:
 
-	Version 0.90, around Sun Jul 11 03:31:56 UTC 2004
+	Version 0.93, around Mon Nov 27 06:06:49 UTC 2006
+	Version 0.92, around Thu Nov 25 20:22:57 UTC 2004
+	Version 0.91, not really released sorta kinda
 
 Mail::SimpleList is a set of modules for creating and using small, simple
 mailing lists.  They're intended to be temporary and very easy to use.  They're
@@ -12,12 +14,10 @@ not tremendously featureful, but they work pretty well.
 The idea came about one afternoon when we were debating what to do after work
 on Friday.  We'd sent several mails back and forth and the Cc line had grown
 unwieldy.  One person said, "Take me off the list; I'll be out of town", but
-not everyone had received that message yet and the replies were getting
-unwieldy.
+not everyone had received that message yet and the replies grew unwieldy.
 
-What we needed was a simple way to start a small mailing list that would only
-be active for a few days, where everyone could subscribe or unsubscribe at
-will.
+We needed a simple way to start a small mailing list that would only be active
+for a few days, where everyone could subscribe or unsubscribe at will.
 
 That's what Mail::SimpleList does.
 
@@ -153,40 +153,27 @@ of the randomly generated alias.
 ADVANCED USAGE
 --------------
 
-The auto-generated list aliases can be unwieldy.  Since everything is stored in
-simple text files, one per list, you can create a symlink to an alias with a
-nicer name and post to that list instead.  This is much nicer for
-longer-lasting lists.
-
-If subscribing and unsubscribing is too difficult, you can edit the files
-manually, if you know YAML sufficiently well.  It's really easy, so it
-shouldn't be much trouble.
+If cloning, creating, editing, subscribing, and unsubscribing are too
+difficult, you can edit the files manually, if you can handle raw YAML.  It's
+really easy, so it shouldn't be much trouble.
 
 ENHANCEMENTS
 -------------
 
-This is intended to be a simple program with a simple purpose.  It does just
-about everything I could ever want right now, but there are a few improvements
-up my sleeve.
-
-Any address in the To header besides the alias address appears to wreak some
-havoc with the program.  Try to avoid this for now.
-
-HELP IS HERE as of version 0.80.
+This is a simple program with a simple purpose.  It does just about everything
+I could ever want right now, but there are a few improvements up my sleeve.
 
 There's not much security on lists; address spoofing is possible.  I'd like to
 add optional cryptographic signing.
 
 There's no archiving yet, but it should be fairly easy to add.
 
-There are a few hard-coded things, such as the alias delimiter.  That should be configurable.
-
 There might be room for a few more tests.
 
 LICENSE, COPYRIGHT, and CREDITS
 -------------------------------
 
-Copyright 2003 - 2004, chromatic < chromatic at wgz dot org >
+Copyright 2003 - 2006, chromatic < chromatic at wgz dot org >
 
 This software is made available under the same license as Perl.
 

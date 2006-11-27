@@ -1,12 +1,8 @@
-#!/usr/bin/perl -w
-
-BEGIN
-{
-	chdir 't' if -d 't';
-	use lib '../lib', '../blib/lib';
-}
+#! perl -T
 
 use strict;
+use warnings;
+
 use Test::More tests => 60;
 
 use_ok( 'Mail::SimpleList::Alias' ) or exit;

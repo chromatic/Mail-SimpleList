@@ -1,54 +1,55 @@
-#!/usr/bin/perl -w
-
-BEGIN
-{
-	chdir 't' if -d 't';
-	use lib '../lib', '../blib/lib';
-}
+#! perl -T
 
 use strict;
+use warnings;
 
 use File::Copy;
 use Mail::Header;
+use Mail::Action::Request;
 
-use Test::More tests => 116;
+use Test::More tests => 113;
 use Test::Exception;
 use Test::MockObject;
 
-my $mock = Test::MockObject->new();
-$mock->fake_module( 'Mail::Mailer', new => sub { $mock } );
-$mock->fake_module( 'Email::MIME',  new => sub { $mock } );
+my $mock    = Test::MockObject->new();
+$mock->fake_module( 'Mail::Mailer',           new => sub { $mock }    );
 
 use_ok( 'Mail::SimpleList' ) or exit;
 can_ok( 'Mail::SimpleList', 'new' );
 
-my $ml = Mail::SimpleList->new( 'aliases', ' ' );
+my $request = Mail::Action::Request->new( <<END_MESSAGE );
+Subject: *Foo*
+From: me\@here
+To: you\@there
+
+END_MESSAGE
+
+my $ml = Mail::SimpleList->new( 'aliases', Request => $request );
 
 isa_ok( $ml,            'Mail::SimpleList'  );
 {
 	# AUTOLOAD() will not be called if UNIVERSAL has our isa()
 
-	local *UNIVERSAL::isa;
-	$mock->mock( isa => sub { 'Email::MIME' eq $_[1]});
-	isa_ok( $ml->message(),   'Email::MIME'    );
+	isa_ok( $ml->request(),   'Mail::Action::Request' );
 }
 isa_ok( $ml->storage(), 'Mail::SimpleList::Aliases' );
 
-$mock->set_always( message => $mock )
-	 ->set_always( storage => $mock );
+$mock->set_always( storage => $mock    );
 
 can_ok( $ml, 'parse_alias' );
 my $result;
 
 can_ok( $ml, 'find_command' );
-$mock->set_series( 'header',
-	'', qw( *FOO* *HELP* *NEW* *UNSUBSCRIBE* *NEWNAME* ));
+$request->store_header( 'Subject', [''] );
 
 ok(! $ml->find_command(), 'find_command() should return false lacking subject');
+
+$request->store_header( 'Subject', [ '*FOO*' ] );
 ok(! $ml->find_command(), '... or invalid command' );
 
 for my $command (qw( help new unsubscribe ))
 {
+	$request->store_header( 'Subject', [ '*' . uc( $command) . '*' ] );
 	$result = $ml->find_command();
 	ok( $result, "... but true for valid command '$command'" );
 	is( $result, "command_$command", '... with proper method name' );
@@ -57,7 +58,6 @@ for my $command (qw( help new unsubscribe ))
 can_ok( $ml, 'process' );
 my $process = \&Mail::SimpleList::process;
 $mock->set_series( find_command => 0, 'command_foo' )
-	 ->set_series( header => 1, 0 )
 	 ->set_true( 'command_foo' )
 	 ->set_series( handle_command => 0, 1 )
 	 ->set_series( fetch_address => 0, 0, 1 )
@@ -65,64 +65,58 @@ $mock->set_series( find_command => 0, 'command_foo' )
 	 ->set_true( 'deliver' )
 	 ->clear();
 
-$result = $process->( $mock );
-my ($method, $args) = $mock->next_call( 2 );
-is( $method, 'header',        'process() should check for loop' );
-is( $args->[1], 'X-MSL-Seen', '... fetching MSL seen header' );
-ok( ! $result,                '... returning if so' );
+$request->store_header( 'X-MSL-Seen', [ 1 ] );
 
-$result = $process->( $mock );
-is( $mock->next_call( 3 ), 'find_command','...otherwise checking for command' );
+$mock->set_always( request => $request );
+$result = $ml->$process();
+ok( ! $result,                'process() should return if in a mail loop' );
+
+$request->store_header( 'X-MSL-Seen', [ 0 ] );
+
+my ($method, $args);
+$mock->$process();
+is( $mock->next_call( 2 ), 'find_command','...otherwise checking for command' );
 $method = $mock->next_call();
 isnt( $method, 'command_foo',             '... not calling it if absent' );
 
 $mock->clear();
-$result = $process->( $mock );
-$method = $mock->next_call( 4 );
+$result = $mock->$process();
+$method = $mock->next_call( 3 );
 is( $method, 'command_foo',               '... but calling it if it is' );
 
 $mock->clear();
-$result = $process->( $mock );
-is( $mock->next_call( 4 ), 'fetch_address', '... looking for alias' );
+$result = $mock->$process();
+is( $mock->next_call( 3 ), 'fetch_address', '... looking for alias' );
 $method = $mock->next_call();
 is( $method, 'reject',                    '... rejecting with no valid alias' );
 
 $mock->clear();
-$result = $process->( $mock );
+$result = $mock->$process();
 
-is( $mock->next_call( 5 ), 'deliver',     '... delivering if alias is okay' );
+is( $mock->next_call( 4 ), 'deliver',     '... delivering if alias is okay' );
 
 can_ok( $ml, 'deliver' );
 
-my $body    = [];
-my %headers =
-(
-	To             => 'to@home',
-	From           => 'from@home',
-	Subject        => 'Simple explanation',
-	Cc             => 'nonsml@host',
-	'Delivered-to' => 'to you',
-);
+my $body = [];
+$request = Mail::Action::Request->new( <<'END_MESSAGE' );
+To: to@home
+From: from@home
+Subject: Simple explanation
+Cc: nonsml@host
+Delivered-To: to@home
 
-$mock->mock( header => sub { $headers{$_[1]} } )
-	 ->set_always( body => $mock )
-	 ->set_always( decoded => $mock )
-	 ->set_always( lines => [ 'body' ] )
-	 ->mock( body_set => sub { $_[0]->{body} = $_[1] })
-	 ->mock( body_raw => sub { $_[0]->{body}         })
-	 ->set_true( 'open' )
+Longer explanation.
+END_MESSAGE
+
+$ml = Mail::SimpleList->new( 'aliases', Request => $request );
+
+$mock->set_true( 'open' )
 	 ->set_true( 'close' )
-	 ->set_always( parts => $mock )
 	 ->set_always( members => [qw( foo bar baz )] )
 	 ->set_series( expires => 100, time() + 100, 0 )
-	 ->set_always( head => $mock )
-	 ->mock( names => sub { qw( To From Subject Cc Delivered-to ) } )
 	 ->mock( print => sub { @$body = @_ } )
+	 ->set_always( request => $request )
 	 ->clear();
-
-# XXX;
-#	- um, yuck
-$mock->{head} = { map { $_ => [ $headers{ $_ } ] } keys %headers };
 
 my $mock_alias = Test::MockObject->new()
 	->set_always( members => [qw( baz bar foo )] )
@@ -133,9 +127,7 @@ my $mock_alias = Test::MockObject->new()
 
 my @ata;
 {
-	# avoid latent T::MO bug with add()
-	local (*Test::MockObject::add, *Mail::SimpleList::add_to_alias,
-		*Mail::SimpleList::can_deliver);
+	local (*Mail::SimpleList::add_to_alias, *Mail::SimpleList::can_deliver);
 	*Mail::SimpleList::add_to_alias  = sub { push @ata, [ @_ ] };
 
 	my $cd;
@@ -143,9 +135,16 @@ my @ata;
 		my ($self, $alias, $message) = @_;
 		unless ($cd++)
 		{
-			$message->{To}      = $message->{From};
-			$message->{Subject} = 'Simple explanation';
-			$message->{Body}    = 'Longer explanation.';
+			$request = Mail::Action::Request->new( <<'END_MESSAGE' );
+To: from@home
+From: to@home
+Delivered-To: from@home
+Subject: Simple explanation
+
+Some message.
+END_MESSAGE
+			$message->{Body} = 'Longer explanation.';
+			$ml->{Request}   = $request;
 		}
 		return $cd > 1;
 	};
@@ -153,9 +152,9 @@ my @ata;
 	ok( $cd,                  'deliver() should check deliverability' );
 	ok( ! $result,            '... returning false if it cannot be delivered' );
 
-	my ($method, $args) = $mock->next_call( 2 );
+ 	my ($method, $args) = $mock->next_call();
 	is( $method, 'open',                           '... opening message' );
-	is( $args->[1]{To},      'from@home',          '... to sender' );
+	like( $args->[1]{To},    qr/\bfrom\@home\b/,   '... to sender' );
 	is( $args->[1]{Subject}, 'Simple explanation', '... with failure subject' );
 
 	($method, $args) = $mock->next_call();
@@ -163,8 +162,17 @@ my @ata;
 	is( $args->[1], 'Longer explanation.',         '... about failure' );
 
 	$mock->clear();
-	$headers{To} = 'to@host, sml@snafu';
-	$headers{Cc} = 'nonsml@host';
+	$request = Mail::Action::Request->new( <<'END_MESSAGE' );
+To: to@host, <sml@snafu>
+From: from@home
+Cc: nonsml@host
+Subject: some message
+Delivered-To: to@host
+
+body
+END_MESSAGE
+
+	$ml              = Mail::SimpleList->new( 'aliases', Request => $request );
 
 	my $mock_aliases = Test::MockObject->new();
 	{
@@ -187,22 +195,24 @@ my @ata;
 
 like( "@$body", qr/\n-- \nTo unsubscribe:/, '... adding unsubscribe message' );
 
-($method, $args) = $mock->next_call( 16 );
+($method, $args) = $mock->next_call();
 is( $method, 'open',                        '... opening message' );
 is_deeply( $args->[1]{Bcc},
 	[qw( baz bar foo )],                    '... blind cc-ing list recipients');
 is( "@{ $ata[0] }", "$ml $mock_alias sml\@snafu nonsml\@host",
                                             '... adding copied addys to list');
+
 is( $args->[1]{'List-Id'},
 	'<my name.list-id.host>',               '... setting list id without desc');
 
-($method, $args) = $mock->next_call( 8 );
+($method, $args) = $mock->next_call( 6 );
 is( @ata, 1, '... not adding addresses without auto-add' );
-is_deeply( $args->[1]{Cc}, 'nonsml@host',   '... keeping Cc without auto-add' );
+like( $args->[1]{Cc}, qr/\bnonsml\@host\b/, '... keeping Cc without auto-add' );
 is( $args->[1]{'List-Id'}, '"this is my list" <my name.list-id.host>',
 	                                        '... setting list id with desc' );
 ok( ! exists $args->[1]{'Delivered-to'}, 
 	                                        '... removing Delivered-To header');
+
 can_ok( $ml, 'reject' );
 throws_ok { $ml->reject() }
 	qr/Invalid alias/,                      'reject() should throw error';
@@ -219,18 +229,21 @@ $mock_alias->set_always( 'attributes', { expires => 1 } )
 		   ->set_true( 'description' )
 	       ->clear();
 
-my $mock_mess = Test::MockObject->new();
-$mock_mess->set_always( parts   => $mock_mess )
-	      ->set_always( decoded => $mock_mess )
-		  ->set_always( body    => <<'END_HERE' );
+$request = Mail::Action::Request->new( <<'END_MESSAGE' );
+To: to@host, sml@snafu
+From: from@home
+Cc: nonsml@host
+Subject: some message
+Delivered-To: to@host
+
 Expires: 7d
 
 my@ddress
 your@ddress
-END_HERE
+END_MESSAGE
 
-$ml->{Message} = $mock_mess;
-$result        = $ml->process_body( $mock_alias );
+$ml     = Mail::SimpleList->new( 'aliases', Request => $request );
+$result = $ml->process_body( $mock_alias );
 
 ($method, $args) = $mock_alias->next_call( 2 );
 is( $method,    'expires',   'process_body() should handle Expires directive' );
@@ -258,7 +271,7 @@ $mock_aliases->set_series( exists => 1, 0, 1, 0 );
 
 can_ok( $ml, 'post_address' );
 {
-	$mock_mess->set_always( header => 'alias@host' );
+	$request->store_header( To => [ Email::Address->parse( 'alias@host' ) ] );
 
 	my $post = $ml->post_address( 'foobar' );
 	is( $post, 'alias+foobar@host',
@@ -269,8 +282,16 @@ can_ok( $ml, 'command_new' );
 my $aliases = { 'foo@bar.com' => 1, 'baz@host' => 1 };
 
 $mock->clear();
-$mock_mess->set_series( header => 'xpou@snafu.org', 'sml+21@snafu.org' )
-	      ->set_always( body   => join( "\n", keys %$aliases ) );
+$request = Mail::Action::Request->new( <<END_MESSAGE );
+Subject: *new*
+From: xpou\@snafu.org
+To: sml+21\@snafu.org
+Delivered-To: sml+21\@snafu.org
+
+@{[ join( "\n", keys %$aliases ) ]}
+END_MESSAGE
+
+$ml = Mail::SimpleList->new( 'aliases', Request => $request );
 
 my @save;
 {
@@ -298,23 +319,31 @@ my ($alias_id) = $args->[1] =~ $regex;
 can_ok( $ml, 'command_clone' );
 $mock->clear();
 $mock->set_true( 'ata' )
+	 ->set_false( 'name' )
 	 ->set_always( attributes => {} )
 	 ->set_always( members => [qw( me you him her )] );
 
 $mock_aliases->set_always( fetch  => $mock )
 	         ->set_always( create => $mock )
 	         ->set_true( 'save' )
-			 ->add( exists => sub { $_[1] eq $alias_id } )
+			 ->mock( exists => sub { $_[1] eq $alias_id } )
 			 ->clear();
 
-$mock_mess->set_always( body   => 'Expire: 7d' )
-		  ->set_series( header => 'new@owner', "*clone* alias+$alias_id\@host", 'alias@host' );
+$request = Mail::Action::Request->new( <<END_MESSAGE );
+From: new\@owner
+Subject: *clone* alias+$alias_id\@host
+To: alias\@host
+
+Expire: 7d
+END_MESSAGE
+
+$ml = Mail::SimpleList->new( 'aliases', Request => $request );
+$mock->set_always( request => $request );
 
 {
 	local *Mail::SimpleList::add_to_alias;
 	*Mail::SimpleList::add_to_alias = sub { shift; $mock->ata( @_ ) };
 	local $ml->{Storage} = $mock_aliases;
-
 	$result              = $ml->command_clone();
 }
 
@@ -340,14 +369,12 @@ can_ok( $ml, 'command_help' );
 can_ok( $ml, 'command_unsubscribe' );
 
 $mock->set_always( fetch_address => $mock_alias )
-	 ->set_always( message       => $mock_mess )
 	 ->set_always( save => 'saved' )
 	 ->set_true( 'reply' )
 	 ->mock( remove_address => sub { $ml->remove_address( @_[1, 2] ) } )
 	 ->clear();
 
-$mock_mess->set_series( header => 'foo@bar', 'baz@bar' )
-	      ->clear();
+$request->store_header( From => [ Email::Address->parse( 'foo@bar' ) ] );
 
 $mock_alias->mock( remove_address => sub { return delete $_[0]->{$_[1]} });
 %$mock_alias = map { $_ => 1 } qw( boo@far baz@bar quux@bar );
@@ -357,8 +384,6 @@ $unsub->( $mock );
 
 is( $mock->next_call(),
 	'fetch_address',            'command_unsubscribe() should fetch alias' );
-is( ($mock_mess->next_call())[1]->[1],
-	'From',                     '... and sender' );
 is( keys %$mock_alias, 3,       '... removing nothing if sender not in alias' );
 
 ($method, $args) = $mock->next_call( 2 );
@@ -366,6 +391,8 @@ is( $method, 'reply',           '... replying to sender' );
 is( $args->[2],
 	'Unsubscribe unsuccessful for foo@bar.  Check the address.',
 	                            '... with a failure message' );
+
+$request->store_header( From => [ Email::Address->parse( 'baz@bar' ) ] );
 
 $result = $unsub->( $mock );
 ok( ! exists $mock_alias->{'baz@bar'},

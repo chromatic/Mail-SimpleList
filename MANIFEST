@@ -12,5 +12,7 @@ t/acceptance.t
 t/alias.t
 t/aliases.t
 t/base.t
+t/developer/pod.t
+t/developer/pod-coverage.t
 t/lib/FakeIn.pm
 t/lib/FakeMail.pm

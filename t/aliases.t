@@ -1,12 +1,7 @@
-#!/usr/bin/perl -w
-
-BEGIN
-{
-	chdir 't' if -d 't';
-	use lib '../lib', '../blib/lib';
-}
+#! perl -T
 
 use strict;
+use warnings;
 
 use Cwd;
 use Config;
@@ -20,18 +15,20 @@ use Test::MockObject;
 use_ok( 'Mail::SimpleList::Aliases' ) or exit;
 can_ok( 'Mail::SimpleList::Aliases', 'new' );
 
-$ENV{HOME}  = cwd();
+# this fun trick gets past taint mode; hard-coding cwd() here wouldn't work
+my ($cur_dir) = cwd() =~ /(.*)/;
+$ENV{HOME}    = $cur_dir;
 
 my $aliases = Mail::SimpleList::Aliases->new();
 isa_ok( $aliases, 'Mail::SimpleList::Aliases' );
 
-my $storage_dir = File::Spec->catdir( $ENV{HOME}, '.aliases' );
+my $storage_dir = File::Spec->catdir( $cur_dir, '.aliases' );
 
 can_ok( $aliases, 'storage_dir' );
 is( $aliases->storage_dir(), $storage_dir,
 	'new() should use ~/.aliases directory as default' );
 
-is( Mail::SimpleList::Aliases->new( $ENV{HOME} )->storage_dir(), $ENV{HOME},
+is( Mail::SimpleList::Aliases->new( 't' )->storage_dir(), 't',
 	'... or a specified directory' );
 
 can_ok( $aliases, 'stored_class' );
@@ -87,7 +84,7 @@ is(    $alias->name(),      'newalias',          '... including the name' );
 
 can_ok( $aliases, 'storage_file' );
 is( $aliases->storage_file( 'foo' ),
-	File::Spec->catfile( $ENV{HOME}, '.aliases','foo.sml' ),
+	File::Spec->catfile( $cur_dir, '.aliases', 'foo.sml' ),
 	'storage_file() should return valid alias filepath' );
 {
 	local $aliases->{storage_dir} = 'newdir/';
@@ -104,5 +101,5 @@ is( @{ $alias->members() }, 3, 'save() should save existing alias' );
 
 END
 {
-	rmtree( File::Spec->catdir( $ENV{HOME}, '.aliases' ) );
+	rmtree( File::Spec->catdir( $cur_dir, '.aliases' ) );
 }

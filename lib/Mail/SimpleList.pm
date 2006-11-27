@@ -9,8 +9,8 @@ use Carp 'croak';
 use Mail::Mailer;
 use Email::Address;
 
-use vars qw( $VERSION );
-$VERSION = '0.90';
+use vars '$VERSION';
+$VERSION = '0.93';
 
 use Mail::SimpleList::Aliases;
 
@@ -21,11 +21,17 @@ sub storage_class
 
 sub parse_alias
 {
-	my ($self, $address) = @_;
-	my ($add) = Mail::Address->parse( $address );
-	my $user  = $add->user();
+	my ($self, $address)  = @_;
+	my ($add)             = Email::Address->parse( $address );
+	my $user              = $add->user();
+	my $expansion_pattern = $self->expansion_pattern();
 
-	return ( $user =~ /\+([^+]+)$/ ) ? $1 : '';
+	return ( $user =~ $expansion_pattern ) ? $1 : '';
+}
+
+sub expansion_pattern
+{
+	return qr/\+([^+]+)$/;
 }
 
 sub command_help
@@ -37,7 +43,7 @@ sub command_help
 sub command_new
 {
 	my $self      = shift;
-	my $from      = $self->address_field( 'from' );
+	my $from      = $self->address_field( 'From' );
 	my $addresses = $self->storage();
 	my $alias     = $addresses->create( $from );
 	my $users     = $self->process_body( $alias );
@@ -57,15 +63,16 @@ sub command_clone
 {
 	my $self       = shift;
 
-	my $from       = $self->address_field( 'from' );
-	my $message    = $self->message();
-	(my $subject   = $message->header( 'Subject' )) =~ s/^\*clone\*\s+//;
+	my $from       = $self->address_field( 'From' );
+	my $request    = $self->request();
+	(my $subject   = $request->header( 'Subject' )) =~ s/^\*clone\*\s+//;
 	my ($alias_id) = $self->parse_alias( $subject );
 	my $addresses  = $self->storage();
 	my $parent     = $addresses->fetch( $alias_id );
 	my $alias      = $addresses->create( $from );
 	my $users      = $self->process_body( $alias );
-	my $id         = $self->generate_alias( $alias_id );
+	my $wanted_id  = $alias->name() || $alias_id;
+	my $id         = $self->generate_alias( $wanted_id );
 	my $post       = $self->post_address( $id );
 
 	$self->add_to_alias( $alias, $post, @{ $parent->members() }, @$users );
@@ -82,9 +89,7 @@ sub address_field
 {
 	my ($self, $field) = @_;
 
-	my $address        = $self->message->header( $field   );
-	my @values         = Email::Address->parse(  $address );
-
+	my @values         = $self->request->header( $field   );
 	return wantarray ? @values : $values[0]->address();
 }
 
@@ -105,10 +110,13 @@ sub generate_alias
 
 sub post_address
 {
-	my ($self, $id) = @_;
-	my ($address)   = $self->address_field( 'to' );
-	my $host        = $address->host();
-	(my $base       = $address->user()) =~ s/\+([^+]+)$//;
+	my ($self, $id)   = @_;
+	my ($address)     = $self->address_field( 'To' );
+
+	# if this is a *new* request, there's no To field anymore
+	$address        ||= $self->request->recipient();
+	my $host          = $address->host();
+	(my $base         = $address->user()) =~ s/\+([^+]+)$//;
 
 	return "$base+$id\@$host";
 }
@@ -124,7 +132,7 @@ sub command_unsubscribe
 {
 	my $self         = shift;
 	my ($alias, $id) = $self->fetch_address();
-	chomp( my $from  = $self->message->header( 'From' ) );
+	my $from         = $self->request->header( 'From' )->address();
 
 	$self->reply({ To => $from, Subject => "Remove from $alias" },
 		 ($alias->remove_address( $from ) and
@@ -138,7 +146,7 @@ sub process
 {
 	my $self    = shift;
 
-	return if $self->message->header('X-MSL-Seen');
+	return if $self->request->header('X-MSL-Seen');
 	my $command = $self->find_command();
 	return $self->$command() if $command;
 
@@ -151,10 +159,13 @@ sub deliver
 {
 	my ($self, $alias) = @_;
 
-	my $name    = $alias->name();
-	my $sent_to = ( $self->address_field( 'To' ) )[0];
-	my $host    = $sent_to->host();
-	my $message = $self->copy_headers();
+	my $name       = $alias->name();
+	my $request    = $self->request();
+	my $recipient  = $request->recipient();
+	my $sent_to    = $recipient->address();
+	my $host       = $recipient->host();
+	my $message    = $request->copy_headers();
+	$message->{To} = $sent_to;
 
 	unless ($self->can_deliver( $alias, $message ))
 	{
@@ -168,8 +179,8 @@ sub deliver
 
 	if ( $alias->auto_add() )
 	{
-		my @to_friends = $self->remove_alias_from( 'To', $sent_to );
-		my @cc_friends = $self->remove_alias_from( 'Cc', $sent_to );
+		my @to_friends = map { $_->address() } $request->header( 'To' );
+		my @cc_friends = map { $_->address() } $request->header( 'Cc' );
 
 		$self->add_to_alias( $alias, @to_friends, @cc_friends );
 		$self->storage->save( $alias, $name );
@@ -178,7 +189,7 @@ sub deliver
 	$message->{Bcc}        = $alias->members();
 	$message->{'List-Id'}  = ( $desc ? qq|"$desc" | : '') .
 		"<$name.list-id.$host>"; 
-	$message->{'Reply-To'} = $message->{To};
+	$message->{'Reply-To'} = $sent_to;
 	delete $message->{'Delivered-to'};
 
 	my $body    = $self->add_signature( "\n-- \nTo unsubscribe:" .
@@ -188,32 +199,15 @@ sub deliver
 	$self->reply( $message, $body );
 }
 
-sub remove_alias_from
-{
-	my ($self, $field, $alias) = @_;
-	my $alias_addy             = ( Email::Address->parse( $alias ) )[0]
-		->address();
-
-	my @to; 
-
-	for my $address ( map { $_->address() } $self->address_field( $field ) )
-	{
-		next if $address eq $alias_addy;
-		push @to, $address;
-	}
-
-	return @to;
-}
-
 sub add_signature
 {
 	my ($self, $sig)  = @_;
-	my $message       = $self->message();
-	my @parts         = $message->parts();
+	my $request       = $self->request();
+	my @parts         = $request->message->parts();
 
 	if (@parts == 1)
 	{
-		$message->body_set( $message->body() . $sig );
+		$request->message->body_set( $request->message->body() . $sig );
 	}
 	else
 	{
@@ -225,10 +219,10 @@ sub add_signature
 		$sig_part->body_set( $sig );
 
 		push @parts, $sig_part;
-		$message->parts_set( \@parts );
+		$request->message->parts_set( \@parts );
 	}
 
-	return $message->body_raw();
+	return $request->message->body_raw();
 }
 
 sub reject
@@ -479,9 +473,75 @@ C<$filehandle> is a filehandle (or a reference to a glob) from which to read an
 incoming message.  By default, it will read from C<STDIN>, as that is how mail
 filters work.
 
-=item * process()
+=item * C<process()>
 
 Processes one incoming message.
+
+=item * C<expansion_pattern()>
+
+Returns a compiled regex to find expanded e-mail addresses (of the form
+C<you+expansion@example.com>).  If you've set your mail server to use a
+delimiter other than C<+>, override this method.  For example, Andy Lester uses
+addresses of the form C<you-expansion@example.com>.  What a nut.
+
+=item * C<add_signature( $signature )>
+
+Adds the given string signature to the message, using the standard marker for
+signatures.  If this message is a multi-part message, creates a new plain text
+attachment.  Right now it only respects ASCII signatures.
+
+=item * C<add_to_alias( $alias, $post_address, @addresses )>
+
+Adds each of the given C<@addresses> to the C<$alias>, notifying them of the
+addition and giving them the C<$post_address> of the list (so they can post to
+it).  This will only notify those addresses actually added to the list.
+
+=item * C<can_deliver( $alias, $message_headers )>
+
+Given an Alias object for the list and the C<$message_headers>, returns true if
+the sender can actually send a message to the list.  Currently, all users can
+post to any list unless the list is closed to non-member postings or has
+expired.
+
+=item * C<deliver( $alias)>
+
+Delivers the message, first checking C<can_deliver()>, then adding all new
+addresses if auto-add is in effect, then setting the appropriate headers (such
+as list headers and the list description), and finally adding a signature and
+delivering the message.
+
+This is currently a lot of responsibility.  Don't rely on everything all
+happening in this magic method.
+
+=item * C<generate_alias( [ $suggested_list_id ] )>
+
+Generates a new alias for a list, given an optional list id.  The current
+algorithm uses the current time plus a random number to avoid collisions with
+another list alias.  It's mostly race-condition free.
+
+=item * C<notify( $alias, $list_address, @addresses )>
+
+Sends a message from the list owner to each address in C<@addresses>, notifying
+them that the system has added them to the C<$alias> with the posting address
+of C<$list_address>.
+
+=item * C<parse_alias( $address )>
+
+Tries to discern the id of the alias from the given string containing an
+e-mail address.  This will return the empty string if it could not find one.
+
+=item * C<post_address( $list_id )>
+
+Given the id of the list, returns the e-mail address to use to post to the list
+in string form.  This depends on your MTA setting the proper delivery headers.
+
+=item * C<reject( [ $reason ] )>
+
+Rejects processing this message by dying with the error code 100.  If there is
+no C<$reason>, this reports an invalid alias.
+
+This method tends to end C<procmail> processing, making the MDA report back to
+the sender, if so configured.
 
 =back
 
@@ -517,6 +577,6 @@ sending)
 
 =head1 COPYRIGHT
 
-Copyright (c) 2003 - 2004, chromatic.  All rights reserved.  This module is
-distributed under the same terms as Perl itself, in the hope that it is useful
-but certainly under no warranty.  Hey, it's free.
+Copyright (c) 2003 - 2006, chromatic.  All rights reserved.  This module is
+distributed under the same terms as Perl 5.8.x itself, in the hope that it is
+useful but certainly under no warranty.  Hey, it's free.

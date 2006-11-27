@@ -1,5 +1,28 @@
+0.93
+	Mon Nov 27 06:05:35 UTC 2006 ($Rev: 60 $, $Author: chromatic $)
+	- fix a test that failed with a newer Test::MockObject
+	- make all tests run under taint mode
+	- add POD tests to run under developer mode
+
+0.92
+	Fri Nov 26 20:35:33 UTC 2004 (Rev: 55, Author: chromatic)
+	- update Build.PL requirement on Mail::Action 0.42
+
+	Thu Nov 25 20:21:53 UTC 2004 (Rev: 52, Author: chromatic)
+	- respect the Name: directive when cloning an alias (Brett Warden)
+	- more M::A::R changes (consistify Email::Address use)
+	- improve FakeMail for M::A::R changes
+	- added expansion_pattern() for overriders (Andy Lester)
+	- bumped up submodule version numbers
+
+0.91
+	Tue Sep 28 23:29:45 UTC 2004 (Rev: 47, Author: chromatic)
+	- change Mail::SimpleList to use Mail::Action::Request
+	- be more aggressive to find correct delivery alias
+	- simplify tests
+
 0.90
-	Sun Jul 11 03:32:51 UTC 2004 ($Rev: 40 $, $Author: chromatic $)
+	Sun Jul 11 03:32:51 UTC 2004 (Rev: 40, Author: chromatic)
 	- added raw_message() to t/lib/FakeMail.pm
 	- ported to Mail::Action 0.40 (Email::Simple, Email::MIME)
 	- added Mail::SimpleList::remove_alias_from()

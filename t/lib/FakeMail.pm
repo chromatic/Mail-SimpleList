@@ -3,6 +3,9 @@ package FakeMail;
 use strict;
 use vars '$AUTOLOAD';
 
+use Email::Address;
+use Scalar::Util 'reftype';
+
 sub new
 {
 	bless {}, $_[0];
@@ -38,12 +41,37 @@ sub raw_message
 	return $message;
 }
 
+sub canonicalize_address
+{
+	my ($self, $address) = @_;
+
+	return unless $address;
+
+	if ( ( reftype( $address ) || '' ) eq 'ARRAY')
+	{
+		return [
+			map {
+				$_->address()
+			}
+			map {
+				$_ ? Email::Address->parse( $_ ) : ()
+			} @$address
+		];
+	}
+	return ( Email::Address->parse( $address ) )[0]->address();
+}
+
 sub AUTOLOAD
 {
 	my $self  = shift;
 	$AUTOLOAD =~ s/.*:://;
 	return if $AUTOLOAD eq 'DESTROY';
-	return $self->{$AUTOLOAD} if exists $self->{$AUTOLOAD};
+
+	my %address = map { $_ => 1 } qw( From To Bcc Cc Reply-To CC BCC );
+
+	return                    unless        $self->{$AUTOLOAD};
+	return $self->{$AUTOLOAD} unless exists $address{$AUTOLOAD};
+	return $self->canonicalize_address( $self->{$AUTOLOAD} );
 }
 
 1;
