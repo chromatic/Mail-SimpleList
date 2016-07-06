@@ -8,34 +8,34 @@ use File::Spec;
 use Mail::SimpleList::Alias;
 
 use vars qw( $VERSION );
-$VERSION = '0.92';
+$VERSION = '0.94';
 
 sub new
 {
-	my ($class, $directory) = @_;
-	$directory ||= File::Spec->catdir( $ENV{HOME}, '.aliases' );
+    my ($class, $directory) = @_;
+    $directory ||= File::Spec->catdir( $ENV{HOME}, '.aliases' );
 
-	$class->SUPER::new( $directory );
+    $class->SUPER::new( $directory );
 }
 
 sub stored_class
 {
-	'Mail::SimpleList::Alias';
+    'Mail::SimpleList::Alias';
 }
 
 sub storage_extension
 {
-	'sml'
+    'sml'
 }
 
 sub create
 {
-	my ($self, $owner) = @_;
+    my ($self, $owner) = @_;
 
-	return Mail::SimpleList::Alias->new(
-		owner   => $owner,
-		members => [$owner],
-	);
+    return Mail::SimpleList::Alias->new(
+        owner   => $owner,
+        members => [$owner],
+    );
 }
 
 1;
@@ -48,8 +48,8 @@ Mail::SimpleList::Aliases - manages Mail::SimpleList::Alias objects
 
 =head1 SYNOPSIS
 
-	use Mail::SimpleList::Aliases;
-	my $aliases = Mail::SimpleList::Aliases->new( '.aliases' );
+    use Mail::SimpleList::Aliases;
+    my $aliases = Mail::SimpleList::Aliases->new( '.aliases' );
 
 =head1 DESCRIPTION
 
@@ -116,5 +116,5 @@ L<Mail::Action::Storage>, the parent class.
 
 =head1 COPYRIGHT
 
-Copyright (c) 2003, chromatic.  All rights reserved.  This module is
+Copyright (c) 2016, chromatic.  All rights reserved.  This module is
 distributed under the same terms as Perl itself.  Convenient for you!

@@ -8,275 +8,278 @@ use Carp 'croak';
 
 use Mail::Mailer;
 use Email::Address;
+use Email::MIME;
 
 use vars '$VERSION';
-$VERSION = '0.93';
+$VERSION = '0.94';
 
 use Mail::SimpleList::Aliases;
 
 sub storage_class
 {
-	'Mail::SimpleList::Aliases'
+    'Mail::SimpleList::Aliases'
 }
 
 sub parse_alias
 {
-	my ($self, $address)  = @_;
-	my ($add)             = Email::Address->parse( $address );
-	my $user              = $add->user();
-	my $expansion_pattern = $self->expansion_pattern();
+    my ($self, $address)  = @_;
+    my ($add)             = Email::Address->parse( $address );
+    my $user              = $add->user();
+    my $expansion_pattern = $self->expansion_pattern();
 
-	return ( $user =~ $expansion_pattern ) ? $1 : '';
+    return ( $user =~ $expansion_pattern ) ? $1 : '';
 }
 
 sub expansion_pattern
 {
-	return qr/\+([^+]+)$/;
+    return qr/\+([^+]+)$/;
 }
 
 sub command_help
 {
-	my $self   = shift;
-	$self->SUPER::command_help( $pod, 'USING LISTS', 'DIRECTIVES' );
+    my $self   = shift;
+    $self->SUPER::command_help( $pod, 'USING LISTS', 'DIRECTIVES' );
 }
 
 sub command_new
 {
-	my $self      = shift;
-	my $from      = $self->address_field( 'From' );
-	my $addresses = $self->storage();
-	my $alias     = $addresses->create( $from );
-	my $users     = $self->process_body( $alias );
-	my $id        = $self->generate_alias( $alias->name() );
-	my $post      = $self->post_address( $id );
+    my $self      = shift;
+    my $from      = $self->address_field( 'From' );
+    my $addresses = $self->storage();
+    my $alias     = $addresses->create( $from );
+    my $users     = $self->process_body( $alias );
+    my $id        = $self->generate_alias( $alias->name() );
+    my $post      = $self->post_address( $id );
 
-	$self->add_to_alias( $alias, $post, @$users );
-	$addresses->save( $alias, $id );
+    $self->add_to_alias( $alias, $post, @$users );
+    $addresses->save( $alias, $id );
 
-	$self->reply({ To => $from, Subject => "Created list $id" },
-		"Mailing list created.  Post to $post." );
+    $self->reply({ To => $from, Subject => "Created list $id" },
+        "Mailing list created.  Post to $post." );
 
-	return $alias;
+    return $alias;
 }
 
 sub command_clone
 {
-	my $self       = shift;
+    my $self       = shift;
 
-	my $from       = $self->address_field( 'From' );
-	my $request    = $self->request();
-	(my $subject   = $request->header( 'Subject' )) =~ s/^\*clone\*\s+//;
-	my ($alias_id) = $self->parse_alias( $subject );
-	my $addresses  = $self->storage();
-	my $parent     = $addresses->fetch( $alias_id );
-	my $alias      = $addresses->create( $from );
-	my $users      = $self->process_body( $alias );
-	my $wanted_id  = $alias->name() || $alias_id;
-	my $id         = $self->generate_alias( $wanted_id );
-	my $post       = $self->post_address( $id );
+    my $from       = $self->address_field( 'From' );
+    my $request    = $self->request();
+    (my $subject   = $request->header( 'Subject' )) =~ s/^\*clone\*\s+//;
+    my ($alias_id) = $self->parse_alias( $subject );
+    my $addresses  = $self->storage();
+    my $parent     = $addresses->fetch( $alias_id );
+    my $alias      = $addresses->create( $from );
+    my $users      = $self->process_body( $alias );
+    my $wanted_id  = $alias->name() || $alias_id;
+    my $id         = $self->generate_alias( $wanted_id );
+    my $post       = $self->post_address( $id );
 
-	$self->add_to_alias( $alias, $post, @{ $parent->members() }, @$users );
+    $self->add_to_alias( $alias, $post, @{ $parent->members() }, @$users );
 
-	$addresses->save( $alias, $id );
+    $addresses->save( $alias, $id );
 
-	$self->reply({ To => $from, Subject => "Cloned alias $alias_id => $id" },
-		"Mailing list created.  Post to $post." );
+    $self->reply({ To => $from, Subject => "Cloned alias $alias_id => $id" },
+        "Mailing list created.  Post to $post." );
 
-	return $alias;
+    return $alias;
 }
 
 sub address_field
 {
-	my ($self, $field) = @_;
+    my ($self, $field) = @_;
 
-	my @values         = $self->request->header( $field   );
-	return wantarray ? @values : $values[0]->address();
+    my @values         = $self->request->header( $field   );
+    return wantarray ? @values : $values[0]->address();
 }
 
 sub generate_alias
 {
-	my ($self, $id) = @_;
-	my $addresses   = $self->storage();
+    my ($self, $id) = @_;
+    my $addresses   = $self->storage();
 
-	$id      ||= sprintf '%x', reverse scalar time;
+    $id      ||= sprintf '%x', reverse scalar time;
 
-	while ($addresses->exists( $id ))
-	{
-		$id    = sprintf '%x', ( reverse ( time() + rand($$) ));
-	}
+    while ($addresses->exists( $id ))
+    {
+        $id    = sprintf '%x', ( reverse ( time() + rand($$) ));
+    }
 
-	return $id;
+    return $id;
 }
 
 sub post_address
 {
-	my ($self, $id)   = @_;
-	my ($address)     = $self->address_field( 'To' );
+    my ($self, $id)   = @_;
+    my ($address)     = $self->address_field( 'To' );
 
-	# if this is a *new* request, there's no To field anymore
-	$address        ||= $self->request->recipient();
-	my $host          = $address->host();
-	(my $base         = $address->user()) =~ s/\+([^+]+)$//;
+    # if this is a *new* request, there's no To field anymore
+    $address        ||= $self->request->recipient();
+    my $host          = $address->host();
+    (my $base         = $address->user()) =~ s/\+([^+]+)$//;
 
-	return "$base+$id\@$host";
+    return "$base+$id\@$host";
 }
 
 sub reply
 {
-	my ($self, $headers) = splice( @_, 0, 2 );
-	$headers->{'X-MSL-Seen'}    = '1';
-	$self->SUPER::reply( $headers, @_ );
+    my ($self, $headers) = splice( @_, 0, 2 );
+    $headers->{'X-MSL-Seen'}    = '1';
+    $self->SUPER::reply( $headers, @_ );
 }
 
 sub command_unsubscribe
 {
-	my $self         = shift;
-	my ($alias, $id) = $self->fetch_address();
-	my $from         = $self->request->header( 'From' )->address();
+    my $self         = shift;
+    my ($alias, $id) = $self->fetch_address();
+    my $from         = $self->request->header( 'From' )->address();
 
-	$self->reply({ To => $from, Subject => "Remove from $alias" },
-		 ($alias->remove_address( $from ) and
-		  $self->storage->save( $alias, $id )) ?
-			"Unsubscribed $from successfully." :
-			"Unsubscribe unsuccessful for $from.  Check the address."
-	);
+    $self->reply({ To => $from, Subject => "Remove from $alias" },
+         ($alias->remove_address( $from ) and
+          $self->storage->save( $alias, $id )) ?
+            "Unsubscribed $from successfully." :
+            "Unsubscribe unsuccessful for $from.  Check the address."
+    );
 }
 
 sub process
 {
-	my $self    = shift;
+    my $self    = shift;
 
-	return if $self->request->header('X-MSL-Seen');
-	my $command = $self->find_command();
-	return $self->$command() if $command;
+    return if $self->request->header('X-MSL-Seen');
+    my $command = $self->find_command();
+    return $self->$command() if $command;
 
-	my $alias   = $self->fetch_address();
-	return $self->deliver( $alias ) if $alias;
-	$self->reject();
+    my $alias   = $self->fetch_address();
+    return $self->deliver( $alias ) if $alias;
+    $self->reject();
 }
 
 sub deliver
 {
-	my ($self, $alias) = @_;
+    my ($self, $alias) = @_;
 
-	my $name       = $alias->name();
-	my $request    = $self->request();
-	my $recipient  = $request->recipient();
-	my $sent_to    = $recipient->address();
-	my $host       = $recipient->host();
-	my $message    = $request->copy_headers();
-	$message->{To} = $sent_to;
+    my $name       = $alias->name();
+    my $request    = $self->request();
+    my $recipient  = $request->recipient();
+    my $sent_to    = $recipient->address();
+    my $host       = $recipient->host();
+    my $message    = $request->copy_headers();
+    $message->{To} = $sent_to;
 
-	unless ($self->can_deliver( $alias, $message ))
-	{
-		my $body       = delete $message->{Body};
-		$message->{To} = delete $message->{From};
-		$self->reply( $message, $body );
-		return;
-	}
+    unless ($self->can_deliver( $alias, $message ))
+    {
+        my $body       = delete $message->{Body};
+        $message->{To} = delete $message->{From};
+        $self->reply( $message, $body );
+        return;
+    }
 
-	my $desc    = $alias->description() || '';
+    my $desc    = $alias->description() || '';
 
-	if ( $alias->auto_add() )
-	{
-		my @to_friends = map { $_->address() } $request->header( 'To' );
-		my @cc_friends = map { $_->address() } $request->header( 'Cc' );
+    if ( $alias->auto_add() )
+    {
+        my @to_friends = map { $_->address() } $request->header( 'To' );
+        my @cc_friends = map { $_->address() } $request->header( 'Cc' );
 
-		$self->add_to_alias( $alias, @to_friends, @cc_friends );
-		$self->storage->save( $alias, $name );
-	}
+        $self->add_to_alias( $alias, @to_friends, @cc_friends );
+        $self->storage->save( $alias, $name );
+    }
 
-	$message->{Bcc}        = $alias->members();
-	$message->{'List-Id'}  = ( $desc ? qq|"$desc" | : '') .
-		"<$name.list-id.$host>"; 
-	$message->{'Reply-To'} = $sent_to;
-	delete $message->{'Delivered-to'};
+    $message->{Bcc}        = $alias->members();
+    $message->{'List-Id'}  = ( $desc ? qq|"$desc" | : '') .
+        "<$name.list-id.$host>"; 
+    $message->{'Reply-To'} = $sent_to;
+    delete $message->{'Delivered-to'};
 
-	my $body    = $self->add_signature( "\n-- \nTo unsubscribe:" .
-		qq| reply to this sender alone with "*UNSUBSCRIBE*" in the subject.\n|
-	);
+    my $body    = $self->add_signature( "\n-- \nTo unsubscribe:" .
+        qq| reply to this sender alone with "*UNSUBSCRIBE*" in the subject.\n|
+    );
 
-	$self->reply( $message, $body );
+    $self->reply( $message, $body );
 }
 
 sub add_signature
 {
-	my ($self, $sig)  = @_;
-	my $request       = $self->request();
-	my @parts         = $request->message->parts();
+    my ($self, $sig)  = @_;
+    my $request       = $self->request();
+    my @parts         = $request->message->parts();
 
-	if (@parts == 1)
-	{
-		$request->message->body_set( $request->message->body() . $sig );
-	}
-	else
-	{
-		my $sig_part  = Email::MIME->new( '' );
+    if (@parts == 1)
+    {
+        $request->message->body_set( $request->message->body() . $sig );
+    }
+    else
+    {
+        my $sig_part  = Email::MIME->create(
+            attributes => {
+                encoding     => '7bit',
+                disposition  => 'attachment',
+                content_type => 'text/plain',
+            },
+            body => $sig,
+        );
 
-		$sig_part->content_type_set( 'text/plain' );
-		$sig_part->encoding_set( '7bit' );
-		$sig_part->disposition_set( 'attachment' );
-		$sig_part->body_set( $sig );
+        push @parts, $sig_part;
+        $request->message->parts_set( \@parts );
+    }
 
-		push @parts, $sig_part;
-		$request->message->parts_set( \@parts );
-	}
-
-	return $request->message->body_raw();
+    return $request->message->body_raw();
 }
 
 sub reject
 {
-	my $reason = $_[1] || "Invalid alias\n";
-	$! = 100;
-	die $reason;
+    my $reason = $_[1] || "Invalid alias\n";
+    $! = 100;
+    die $reason;
 }
 
 sub notify
 {
-	my ($self, $alias, $id) = splice( @_, 0, 3 );
+    my ($self, $alias, $id) = splice( @_, 0, 3 );
 
-	my $owner = $alias->owner();
-	my $desc  = $alias->description();
+    my $owner = $alias->owner();
+    my $desc  = $alias->description();
 
-	for my $address ( @_ )
-	{
-		$self->reply({
-			From       => $owner,
-			To         => $address, 
-			'Reply-To' => $id,
-			Subject    => "Added to alias $id",
-		}, "You have been subscribed to alias $id by $owner.\n\n", $desc );
-	}
+    for my $address ( @_ )
+    {
+        $self->reply({
+            From       => $owner,
+            To         => $address, 
+            'Reply-To' => $id,
+            Subject    => "Added to alias $id",
+        }, "You have been subscribed to alias $id by $owner.\n\n", $desc );
+    }
 }
 
 sub can_deliver
 {
-	my ($self, $alias, $message) = @_;
-	if ( $alias->closed() and not
-		grep { $_ eq $message->{From} } @{ $alias->members() })
-	{
-		$message->{To}      = $message->{From};
-		$message->{Subject} = 'Alias closed';
-		$message->{Body}    = 'This alias is closed to non-members.';
-		return;
-	}
-	return 1 unless my $expires = $alias->expires();
-	if ($expires < time())
-	{
-		$message->{To}      = $message->{From};
-		$message->{Subject} = 'Alias expired';
-		$message->{Body}    = 'This alias has expired.';
-		return;
-	}
-	return 1;
+    my ($self, $alias, $message) = @_;
+    if ( $alias->closed() and not
+        grep { $_ eq $message->{From} } @{ $alias->members() })
+    {
+        $message->{To}      = $message->{From};
+        $message->{Subject} = 'Alias closed';
+        $message->{Body}    = 'This alias is closed to non-members.';
+        return;
+    }
+    return 1 unless my $expires = $alias->expires();
+    if ($expires < time())
+    {
+        $message->{To}      = $message->{From};
+        $message->{Subject} = 'Alias expired';
+        $message->{Body}    = 'This alias has expired.';
+        return;
+    }
+    return 1;
 }
 
 sub add_to_alias
 {
-	my ($self, $alias, $id, @addresses) = @_;
-	my @added = $alias->add( @addresses ) or return;
-	$self->notify( $alias, $id, @added );
+    my ($self, $alias, $id, @addresses) = @_;
+    my @added = $alias->add( @addresses ) or return;
+    $self->notify( $alias, $id, @added );
 }
 
 1;
@@ -288,9 +291,9 @@ Mail::SimpleList - module for managing simple, temporary, easy mailing lists
 
 =head1 SYNOPSIS
 
-	use Mail::SimpleList;
-	my $list = Mail::SimpleList->new( 'alias' );
-	$list->process();
+    use Mail::SimpleList;
+    my $list = Mail::SimpleList->new( 'alias' );
+    $list->process();
 
 =head1 DESCRIPTION
 
@@ -320,13 +323,13 @@ subject of the message, include the phrase C<*new*>.  In the body of the
 message, include a list of e-mail addresses to be subscribed to the list.  For
 example, you may create a list including Alice, Bob, and Charlie with an e-mail resembling:
 
-	From:    you@example.com
-	To:      alias@example.com
-	Subject: *new*
+    From:    you@example.com
+    To:      alias@example.com
+    Subject: *new*
 
-	alice@example.com
-	bob@example.com
-	charlie@example.com
+    alice@example.com
+    bob@example.com
+    charlie@example.com
 
 You will receive a response informing you that the list has been created.
 Alice, Bob, and Charlie will each receive a response indicating that you have
@@ -353,11 +356,11 @@ duplicate messages, even if he is already subscribed.
 To unsubscribe from a list, send an e-mail to the address provided with a
 subject line of C<*unsubscribe*>.  In Bob's case, this message might be:
 
-	From:    bob@example.com
-	To:      alias+3abfeec@example.com
-	Subject: *unsubscribe*
+    From:    bob@example.com
+    To:      alias+3abfeec@example.com
+    Subject: *unsubscribe*
 
-	no body here; it doesn't matter
+    no body here; it doesn't matter
 
 Bob will receive an e-mail confirming that he has been unsubscribed.  He will
 not receive any more messages directed to this list unless he resubscribes.
@@ -370,11 +373,11 @@ case, C<alias@example.com>) with a subject containing the command C<*clone*>
 and the address of the list to clone.  Alice could clone the list above by
 sending the message:
 
-	From:    alice@example.com
-	To:      alias@example.com
-	Subject: *clone* alias+3abfeec@example.com
+    From:    alice@example.com
+    To:      alias@example.com
+    Subject: *clone* alias+3abfeec@example.com
 
-	doug@example.com
+    doug@example.com
 
 Alice will receive a list creation message and the members of the cloned list
 will each receive a message informing them that they have been added to the
@@ -389,7 +392,7 @@ directives when you create or clone a list.
 Directives go in the body of the creation or clone message, B<before> the list
 of e-mail addresses to add.  They take the form:
 
-	Directive: option
+    Directive: option
 
 =head2 Closed
 
@@ -400,8 +403,8 @@ will receive an error message indicating that the list is closed.
 This attribute is false by default; anyone can post to a list.  To enable it,
 use either directive form:
 
-	Closed: yes
-	Closed: 1
+    Closed: yes
+    Closed: 1
 
 =head2 Expires
 
@@ -412,7 +415,7 @@ will then receive an error message indicating that the list has expired.
 This attribute is not set by default; lists do not expire.  To enable it, use
 the directive form:
 
-	Expires: 7d2h
+    Expires: 7d2h
 
 This directive will cause the list to expire in seven days and two hours.
 Valid time units are:
@@ -439,8 +442,8 @@ This directive governs whether addresses found in the C<CC> header will be
 added automatically to the list.  By default, it is enabled.  To disable it,
 use either directive form:
 
-	Auto_add: no
-	Auto_add: 0
+    Auto_add: no
+    Auto_add: 0
 
 =head2 Description
 
@@ -448,7 +451,7 @@ This is a single line that describes the purpose of the list.  It is sent to
 everyone when they are added to the list.  By default, it is blank.  To set a
 description, use the form:
 
-	Description: A list for discussing fluoridation.
+    Description: A list for discussing fluoridation.
 
 =head2 Name
 
@@ -456,7 +459,7 @@ This isn't a directive in the sense that it's an intrinsic part of a list.
 It's just a way to give a list a nicer name when it's being created.  Instead
 of having to rename a list to a nicer name, you can specify it with:
 
-	Name: meat-eaters
+    Name: meat-eaters
 
 Only letters, numbers, dashes, and the underscore characters are allowed in
 names.
@@ -577,6 +580,6 @@ sending)
 
 =head1 COPYRIGHT
 
-Copyright (c) 2003 - 2006, chromatic.  All rights reserved.  This module is
-distributed under the same terms as Perl 5.8.x itself, in the hope that it is
-useful but certainly under no warranty.  Hey, it's free.
+Copyright (c) 2016 chromatic.  All rights reserved.  This module is distributed
+under the same terms as Perl 5.24, in the hope that it is useful but under no
+warranty.

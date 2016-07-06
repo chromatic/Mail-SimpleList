@@ -36,6 +36,7 @@ my $build = $class->new(
 	requires    =>
 	{
 		Class::Roles     => '0.30',
+		Email::MIME      => '1.937',
 		Mail::Action     => '0.42',
 		Mail::Internet   => '1.53',
 		Pod::Simple      => '',

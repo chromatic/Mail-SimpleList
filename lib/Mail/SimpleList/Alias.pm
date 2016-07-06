@@ -3,106 +3,106 @@ package Mail::SimpleList::Alias;
 use strict;
 
 use Mail::Action::Address;
-use Class::Roles
-	does => 'address_expires',
-	does => 'address_named',
-	does => 'address_described';
-
 use Mail::Address;
 
+use Class::Roles
+    does => 'address_expires',
+    does => 'address_named',
+    does => 'address_described';
+
 use vars qw( $VERSION );
-$VERSION = '0.92';
+$VERSION = '0.94';
 
 sub new
 {
-	my $class = shift;
-	bless {
-		owner       => '',
-		closed      => 0,
-		expires     => 0,
-		auto_add    => 1,
-		description => '',
-		members     => [],
-	@_ }, $class;
+    my $class = shift;
+    bless {
+        owner       => '',
+        closed      => 0,
+        expires     => 0,
+        auto_add    => 1,
+        description => '',
+        members     => [],
+    @_ }, $class;
 }
 
 sub members
 {
-	my $self = shift;
-	return $self->{members};
+    my $self = shift;
+    return $self->{members};
 }
 
 sub add
 {
-	my $self = shift;
+    my $self = shift;
 
-	my %existing = map { $_ => 1 } @{ $self->{members} };
-	my $existing = @{ $self->{members} };
+    my %existing = map { $_ => 1 } @{ $self->{members} };
+    my $existing = @{ $self->{members} };
 
-	while (@_)
-	{
-		my $address = shift or next;
-		chomp $address;
+    while (@_)
+    {
+        my $address = shift or next;
+        chomp $address;
 
-		for my $member ( Mail::Address->parse( $address ))
-		{
-			$member = $member->address();
-			next if exists $existing{ $member };
-			push @{ $self->{members} }, $member;
-			$existing{ $member } = 1;
-		}
-	}
+        for my $member ( Mail::Address->parse( $address ))
+        {
+            $member = $member->address();
+            next if exists $existing{ $member };
+            push @{ $self->{members} }, $member;
+            $existing{ $member } = 1;
+        }
+    }
 
-	return @{ $self->{members} }[ $existing .. $#{ $self->{members} } ];
+    return @{ $self->{members} }[ $existing .. $#{ $self->{members} } ];
 }
 
 sub remove_address
 {
-	my ($self, $remove) = @_;
+    my ($self, $remove) = @_;
 
-	# Mail::Address format adds a newline
-	chomp $remove;
-	my $original = @{ $self->{members} };
+    # Mail::Address format adds a newline
+    chomp $remove;
+    my $original = @{ $self->{members} };
 
-	$self->{members} = [ grep { $_ ne $remove } @{ $self->{members} } ];
-	$self->{owner}   = '' if $self->{owner} eq $remove;
+    $self->{members} = [ grep { $_ ne $remove } @{ $self->{members} } ];
+    $self->{owner}   = '' if $self->{owner} eq $remove;
 
-	return $original > @{ $self->{members} };
+    return $original > @{ $self->{members} };
 }
 
 sub owner
 {
-	my $self = shift;
-	$self->add( $self->{owner} = shift ) if @_;
-	return $self->{owner};
+    my $self = shift;
+    $self->add( $self->{owner} = shift ) if @_;
+    return $self->{owner};
 }
 
 sub closed
 {
-	my $self = shift;
-	$self->{closed} = $self->is_true( $_[0] ) if @_;
-	return $self->{closed};
+    my $self = shift;
+    $self->{closed} = $self->is_true( $_[0] ) if @_;
+    return $self->{closed};
 }
 
 sub is_true
 {
-	my ($self, $value) = @_;
-	return 0 unless $value;
-	return 0 if $value =~ /^[Nn]o/;
-	return 1;
+    my ($self, $value) = @_;
+    return 0 unless $value;
+    return 0 if $value =~ /^[Nn]o/;
+    return 1;
 
 }
 
 sub auto_add
 {
-	my $self = shift;
-	$self->{auto_add} = $self->is_true( $_[0] ) if @_;
-	return $self->{auto_add};
+    my $self = shift;
+    $self->{auto_add} = $self->is_true( $_[0] ) if @_;
+    return $self->{auto_add};
 }
 
 sub attributes
 {
-	+{ map { $_ => 1 } qw( owner closed expires auto_add description name ) }
+    +{ map { $_ => 1 } qw( owner closed expires auto_add description name ) }
 }
 
 1;
@@ -114,13 +114,13 @@ Mail::SimpleList::Alias - object representing a temporary mailing list
 
 =head1 SYNOPSIS
 
-	use Mail::SimpleList::Alias;
-	my $alias   =  Mail::SimpleList::Alias->new(
-		owner   => 'me@example.com',
-		members => [
-			'alice@example.com', 'bob@example.com', 'charlie@example.com'
-		],
-	);
+    use Mail::SimpleList::Alias;
+    my $alias   =  Mail::SimpleList::Alias->new(
+        owner   => 'me@example.com',
+        members => [
+            'alice@example.com', 'bob@example.com', 'charlie@example.com'
+        ],
+    );
 
 =head1 DESCRIPTION
 
@@ -219,5 +219,5 @@ L<Mail::Action::Address>, the parent class.
 
 =head1 COPYRIGHT
 
-Copyright (c) 2003, chromatic.  All rights reserved.  This module is
+Copyright (c) 2016, chromatic.  All rights reserved.  This module is
 distributed under the same terms as Perl itself.  How nice.
