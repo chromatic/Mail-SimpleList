@@ -1,6 +1,8 @@
 0.95
     Sun Jul 28 2013
     - fixed documentation link (Mike Flannagin)
+    - updated copyright text
+    - updated pragmas (use warnings and prefer parent to base)
 
 0.94
     Tue Jul 05 19:17:00 PDT 2013

@@ -1,9 +1,11 @@
 package Mail::SimpleList;
 
 use strict;
+use warnings;
+
 my $pod = do { local $/; <DATA> };
 
-use base 'Mail::Action';
+use parent 'Mail::Action';
 use Carp 'croak';
 
 use Mail::Mailer;
@@ -580,6 +582,6 @@ sending)
 
 =head1 COPYRIGHT
 
-Copyright (c) 2016 chromatic.  All rights reserved.  This module is distributed
-under the same terms as Perl 5.24, in the hope that it is useful but under no
-warranty.
+Copyright (c) 2003 - 2016 chromatic. All rights reserved. This module is
+distributed under the same terms as Perl 5.30, in the hope that it is useful
+but under no warranty.
