@@ -8,7 +8,7 @@ use File::Spec;
 use Mail::SimpleList::Alias;
 
 use vars qw( $VERSION );
-$VERSION = '0.94';
+$VERSION = '0.95';
 
 sub new
 {

@@ -1,3 +1,7 @@
+0.95
+    Sun Jul 28 2013
+    - fixed documentation link (Mike Flannagin)
+
 0.94
     Tue Jul 05 19:17:00 PDT 2013
     - fixed tests for Perl 5.24 and, more importantly, Email::MIME
